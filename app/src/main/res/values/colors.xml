@@ -11,16 +11,36 @@
     <color name="blue_deep">#1135b8</color>
     <color name="blue_deeper">#09238f</color>
 
-    <!-- Bright glow blue - used for highlights, buttons, the accent that actually needs to pop -->
-    <color name="blue_bright">#2861ff</color>
-    <color name="blue_glow">#4d7bff</color>
+    <!-- Bright glow blue - used for highlights, buttons, the accent that actually needs to pop.
+         Nudged a shade lighter/more vivid than the first pass so buttons and active states
+         feel a little more alive against all the black. -->
+    <color name="blue_bright">#3D74FF</color>
+    <color name="blue_glow">#5E89FF</color>
 
     <!-- Text - white/near-white for actual readability on black -->
     <color name="text_primary">#F5F6FA</color>
     <color name="text_secondary">#9AA8D6</color>
     <color name="text_muted">#5A6699</color>
 
-    <!-- Message bubble fills -->
-    <color name="bubble_user">#1135b8</color>
+    <!-- Hairline / hover tints shared by the sidebar, dividers and icon buttons,
+         so every subtle surface in the app uses the same low-opacity blue. -->
+    <color name="line">#471135B8</color>
+    <color name="hover_tint">#1F1135B8</color>
+
+    <!-- Message bubbles.
+         Agent bubble: near-black fill + a solid deep-blue hairline (unchanged, already matched the theme).
+         User bubble: was previously a solid, fully-opaque bright blue block with white text — it read as a
+         loud "stock chat bubble" that clashed with the low-contrast glowing-black theme everywhere else.
+         It's now a soft, translucent blue tint (same family as the hover/line tints) with a glowing hairline
+         — given a touch more depth/opacity here than the very first pass so it still reads clearly as
+         "yours" at a glance, without going back to the old loud block. -->
+    <color name="bubble_user">#331135B8</color>
+    <color name="bubble_user_border">#755E89FF</color>
     <color name="bubble_agent">#12131A</color>
+
+    <!-- Drawer / history -->
+    <color name="drawer_bg">#000000</color>
+
+    <!-- Attachment chips + login buttons share the same subdued bordered-pill treatment -->
+    <color name="chip_bg">#0D0D12</color>
 </resources>

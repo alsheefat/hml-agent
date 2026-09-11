@@ -16,6 +16,7 @@ class ChatAdapter(private val messages: MutableList<ChatMessage>) :
 
     class UserViewHolder(view: View) : RecyclerView.ViewHolder(view) {
         val text: TextView = view.findViewById(R.id.messageText)
+        val attachmentsLabel: TextView = view.findViewById(R.id.attachmentsLabel)
     }
 
     class AgentViewHolder(view: View) : RecyclerView.ViewHolder(view) {
@@ -38,7 +39,15 @@ class ChatAdapter(private val messages: MutableList<ChatMessage>) :
     override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
         val message = messages[position]
         when (holder) {
-            is UserViewHolder -> holder.text.text = message.text
+            is UserViewHolder -> {
+                holder.text.text = message.text
+                if (message.attachments.isNotEmpty()) {
+                    holder.attachmentsLabel.visibility = View.VISIBLE
+                    holder.attachmentsLabel.text = "📎 " + message.attachments.joinToString(", ")
+                } else {
+                    holder.attachmentsLabel.visibility = View.GONE
+                }
+            }
             is AgentViewHolder -> holder.text.text = message.text
         }
     }
@@ -48,6 +57,12 @@ class ChatAdapter(private val messages: MutableList<ChatMessage>) :
     fun addMessage(message: ChatMessage) {
         messages.add(message)
         notifyItemInserted(messages.size - 1)
+    }
+
+    fun setMessages(newMessages: List<ChatMessage>) {
+        messages.clear()
+        messages.addAll(newMessages)
+        notifyDataSetChanged()
     }
 
     fun clear() {

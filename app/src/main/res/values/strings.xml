@@ -1,4 +1,40 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">HML Agent</string>
+
+    <!-- ===================== OAuth config — fill these in yourself =====================
+         Nothing below can be generated for you; each value comes from an account you control.
+
+         GOOGLE: console.cloud.google.com -> APIs & Services -> Credentials
+                 -> create an OAuth 2.0 "Web application" client
+                 -> paste its Client ID below (this is the "server client ID" GoogleSignInOptions needs,
+                    even though the app itself is Android — that's how Google's SDK works)
+                 -> also register your app's SHA-1 signing fingerprint in that same console.
+
+         FACEBOOK: developers.facebook.com -> My Apps -> your app -> Settings -> Basic
+                   -> copy the App ID and Client Token below
+                   -> add your Android key hash under Settings -> Basic -> Android platform.
+         =================================================================================== -->
+    <string name="default_web_client_id" translatable="false">REPLACE_WITH_GOOGLE_OAUTH_WEB_CLIENT_ID</string>
+    <string name="facebook_app_id" translatable="false">REPLACE_WITH_FACEBOOK_APP_ID</string>
+    <string name="facebook_client_token" translatable="false">REPLACE_WITH_FACEBOOK_CLIENT_TOKEN</string>
+    <string name="fb_login_protocol_scheme" translatable="false">fbREPLACE_WITH_FACEBOOK_APP_ID</string>
+
+    <string name="login_tagline">Your personal AI agent. Ask anything, give it a task, or tell it what you need.</string>
+    <string name="continue_with_google">Continue with Google</string>
+    <string name="continue_with_facebook">Continue with Facebook</string>
+    <string name="login_disclaimer">By continuing, you agree to HML Agent\'s Terms and Privacy Policy.</string>
+
+    <string name="new_chat">New chat</string>
+    <string name="temporary_chat">Temporary chat</string>
+    <string name="temporary_chat_banner">Temporary chat — won\'t be saved to history</string>
+    <string name="recent">Recent</string>
+    <string name="message_hint">Message HML Agent…</string>
+    <string name="attach_file">Attach file</string>
+    <string name="remove_attachment">Remove attachment</string>
+    <string name="voice_input">Voice input</string>
+    <string name="send">Send</string>
+    <string name="log_out">Log out</string>
+    <string name="log_out_confirm">Log out of HML Agent?</string>
+    <string name="disclaimer_footer">HML Agent can make mistakes. Check important information.</string>
 </resources>
