@@ -1,0 +1,8 @@
+HML Agent — Stage 7
+
+Project stage: Stage 7
+This archive is the Stage 7 build of HML Agent.
+
+Google Sign-In fix included:
+- Uses GoogleSignInOptions with requestEmail() only.
+- Does not request an unnecessary Web client ID / ID token.
