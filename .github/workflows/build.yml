@@ -25,7 +25,7 @@ jobs:
           gradle-version: 8.7
 
       - name: Decode debug keystore
-        run: echo "${{ secrets.DEBUG_KEYSTORE_B64 }}" | base64 -d > app/debug.keystore
+        run: echo "${{ secrets.DEBUG_KEYSTORE_B64 }}" | base64 -d -i > app/debug.keystore
 
       - name: Build debug APK
         run: gradle assembleDebug
