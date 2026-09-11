@@ -43,7 +43,7 @@ class LoginActivity : AppCompatActivity() {
             showProgress(false)
             Toast.makeText(
                 this,
-                "Google sign-in failed (code ${e.statusCode}). Check default_web_client_id in strings.xml.",
+                googleErrorMessage(e.statusCode),
                 Toast.LENGTH_LONG
             ).show()
         }
@@ -60,8 +60,13 @@ class LoginActivity : AppCompatActivity() {
 
         progress = findViewById(R.id.loginProgress)
 
+        // This app performs local Google account sign-in only; it does not send the
+        // Google ID token to a backend. Requesting an ID token forces the Google
+        // Sign-In SDK to validate a Web/server OAuth client ID and can produce
+        // DEVELOPER_ERROR when that server client is not configured exactly right.
+        // Email/profile sign-in only requires the Android OAuth configuration
+        // (package name + signing certificate SHA-1).
         val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
-            .requestIdToken(getString(R.string.default_web_client_id))
             .requestEmail()
             .build()
         googleSignInClient = GoogleSignIn.getClient(this, gso)
@@ -103,6 +108,14 @@ class LoginActivity : AppCompatActivity() {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         callbackManager.onActivityResult(requestCode, resultCode, data)
+    }
+
+    private fun googleErrorMessage(statusCode: Int): String = when (statusCode) {
+        10 -> "Google sign-in failed (DEVELOPER_ERROR). Check that the Web client ID, Android package name, and SHA-1 certificate belong to the same Google Cloud project."
+        12500 -> "Google sign-in failed. The Google Play services configuration is invalid for this app."
+        12501 -> "Google sign-in was cancelled."
+        12502 -> "Google sign-in is already in progress."
+        else -> "Google sign-in failed (code $statusCode). Check your Google OAuth configuration."
     }
 
     private fun onLoginSuccess(name: String, subtitle: String) {
