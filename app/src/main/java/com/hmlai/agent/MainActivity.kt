@@ -1,6 +1,8 @@
 package com.hmlai.agent
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.PorterDuff
 import android.net.Uri
 import android.os.Bundle
@@ -67,6 +69,13 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var input: EditText
 
+    // Stage 3: flashlight + "call <contact>" need these to actually run.
+    // Re-requested here (not just declared in the manifest) since they're
+    // dangerous/runtime permissions on API 26+.
+    private val permissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { /* results handled implicitly — DeviceCommandHandler re-checks permission when a command runs */ }
+
     private val filePickerLauncher = registerForActivityResult(
         ActivityResultContracts.OpenMultipleDocuments()
     ) { uris -> uris.forEach { addAttachment(it) } }
@@ -110,11 +119,12 @@ class MainActivity : AppCompatActivity() {
 
         setupDrawer(menuButton, drawerNewChat)
         setupAccountRow(accountRow)
+        requestDevicePermissionsIfNeeded()
 
         sendButton.setOnClickListener {
             val text = input.text.toString().trim()
             if (text.isNotEmpty()) {
-                sendMessage(text)
+                handleUserInput(text)
                 input.setText("")
             }
         }
@@ -127,6 +137,20 @@ class MainActivity : AppCompatActivity() {
         }
 
         micButton.setOnClickListener { startVoiceInput() }
+    }
+
+    private fun requestDevicePermissionsIfNeeded() {
+        val permissions = listOf(
+            Manifest.permission.CALL_PHONE,
+            Manifest.permission.READ_CONTACTS,
+            Manifest.permission.CAMERA
+        )
+        val needed = permissions.filter {
+            checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED
+        }
+        if (needed.isNotEmpty()) {
+            permissionLauncher.launch(needed.toTypedArray())
+        }
     }
 
     // ---------------------------------------------------------------- drawer / history
@@ -270,13 +294,28 @@ class MainActivity : AppCompatActivity() {
 
     // ---------------------------------------------------------------- sending
 
-    private fun sendMessage(text: String) {
+    /** Every message first goes through the local device-command handler
+     * (call a contact, flashlight on/off). Only if it's NOT a device
+     * command does it get sent to the AI server as a normal chat message. */
+    private fun handleUserInput(text: String) {
         val attachmentNames = pendingAttachments.map { queryFileName(it) }
         adapter.addMessage(ChatMessage(text, isUser = true, attachments = attachmentNames))
         clearAttachments()
         scrollToBottom()
         persistCurrentConversation()
 
+        val commandResult = DeviceCommandHandler.tryHandle(this, text)
+        if (commandResult.handled) {
+            adapter.addMessage(ChatMessage(commandResult.responseText, isUser = false))
+            scrollToBottom()
+            persistCurrentConversation()
+            return
+        }
+
+        sendToServer(text, attachmentNames)
+    }
+
+    private fun sendToServer(text: String, attachmentNames: List<String>) {
         // Show a temporary "thinking" bubble while waiting for the server.
         adapter.addMessage(ChatMessage("…", isUser = false))
         scrollToBottom()

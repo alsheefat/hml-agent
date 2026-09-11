@@ -15,7 +15,7 @@
                    -> copy the App ID and Client Token below
                    -> add your Android key hash under Settings -> Basic -> Android platform.
          =================================================================================== -->
-    <string name="default_web_client_id" translatable="false">REPLACE_WITH_GOOGLE_OAUTH_WEB_CLIENT_ID</string>
+    <string name="default_web_client_id" translatable="false">997877944655-tb405n5mg0gisnmj4j98nl2dau98gohn.apps.googleusercontent.com</string>
     <string name="facebook_app_id" translatable="false">REPLACE_WITH_FACEBOOK_APP_ID</string>
     <string name="facebook_client_token" translatable="false">REPLACE_WITH_FACEBOOK_CLIENT_TOKEN</string>
     <string name="fb_login_protocol_scheme" translatable="false">fbREPLACE_WITH_FACEBOOK_APP_ID</string>
