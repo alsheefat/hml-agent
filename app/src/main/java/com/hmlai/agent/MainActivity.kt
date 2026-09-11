@@ -1,8 +1,11 @@
 package com.hmlai.agent
 
+import android.Manifest
+import android.content.pm.PackageManager
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -32,6 +35,10 @@ class MainActivity : AppCompatActivity() {
     private lateinit var adapter: ChatAdapter
     private lateinit var messageList: RecyclerView
 
+    private val permissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { /* results handled implicitly — commands re-check permission when run */ }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
@@ -41,6 +48,8 @@ class MainActivity : AppCompatActivity() {
         messageList.layoutManager = LinearLayoutManager(this)
         messageList.adapter = adapter
 
+        requestDevicePermissionsIfNeeded()
+
         val input = findViewById<android.widget.EditText>(R.id.messageInput)
         val sendButton = findViewById<android.widget.ImageButton>(R.id.sendButton)
         val newChatButton = findViewById<android.widget.TextView>(R.id.newChatButton)
@@ -48,7 +57,7 @@ class MainActivity : AppCompatActivity() {
         sendButton.setOnClickListener {
             val text = input.text.toString().trim()
             if (text.isNotEmpty()) {
-                sendMessage(text)
+                handleUserInput(text)
                 input.setText("")
             }
         }
@@ -58,10 +67,41 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun sendMessage(text: String) {
+    private fun requestDevicePermissionsIfNeeded() {
+        val needed = mutableListOf<String>()
+        val permissions = listOf(
+            Manifest.permission.CALL_PHONE,
+            Manifest.permission.READ_CONTACTS,
+            Manifest.permission.CAMERA
+        )
+        for (permission in permissions) {
+            if (checkSelfPermission(permission) != PackageManager.PERMISSION_GRANTED) {
+                needed.add(permission)
+            }
+        }
+        if (needed.isNotEmpty()) {
+            permissionLauncher.launch(needed.toTypedArray())
+        }
+    }
+
+    /** Every message first goes through the local device-command handler
+     * (call a contact, flashlight on/off). Only if it's NOT a device
+     * command does it get sent to the AI server as a normal chat message. */
+    private fun handleUserInput(text: String) {
         adapter.addMessage(ChatMessage(text, isUser = true))
         scrollToBottom()
 
+        val commandResult = DeviceCommandHandler.tryHandle(this, text)
+        if (commandResult.handled) {
+            adapter.addMessage(ChatMessage(commandResult.responseText, isUser = false))
+            scrollToBottom()
+            return
+        }
+
+        sendMessage(text)
+    }
+
+    private fun sendMessage(text: String) {
         // Show a temporary "thinking" bubble while waiting for the server.
         adapter.addMessage(ChatMessage("…", isUser = false))
         scrollToBottom()
