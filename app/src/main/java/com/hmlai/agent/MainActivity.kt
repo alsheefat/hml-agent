@@ -12,6 +12,7 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.OpenableColumns
 import android.speech.RecognizerIntent
+import android.view.ContextThemeWrapper
 import android.view.LayoutInflater
 import android.view.View
 import android.widget.EditText
@@ -221,7 +222,8 @@ class MainActivity : AppCompatActivity() {
     /** Long-press-free options menu (tap the ⋮ button) matching the rename / pin /
      * share / delete pattern most chat apps use for managing conversation history. */
     private fun showConversationOptions(conversation: Conversation, anchor: View) {
-        val popup = PopupMenu(this, anchor)
+        val themedContext = ContextThemeWrapper(this, R.style.PopupMenuOverlay)
+        val popup = PopupMenu(themedContext, anchor)
         popup.menuInflater.inflate(R.menu.menu_history_item, popup.menu)
         popup.menu.findItem(R.id.action_pin).setTitle(
             if (conversation.pinned) R.string.unpin_conversation else R.string.pin_conversation

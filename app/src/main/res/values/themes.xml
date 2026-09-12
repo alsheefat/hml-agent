@@ -9,4 +9,25 @@
         <item name="android:navigationBarColor">@color/bg_black</item>
         <item name="android:textColor">@color/text_primary</item>
     </style>
+
+    <!-- Used to theme the conversation-options PopupMenu (rename/pin/share/delete) so it
+         matches the app's dark/blue look instead of the system's default light popup. -->
+    <style name="PopupMenuOverlay" parent="ThemeOverlay.AppCompat.Dark">
+        <item name="popupMenuStyle">@style/AppPopupMenu</item>
+        <item name="android:popupMenuStyle">@style/AppPopupMenu</item>
+        <item name="android:textColorPrimary">@color/text_primary</item>
+        <item name="colorControlHighlight">@color/hover_tint</item>
+        <item name="android:colorControlHighlight">@color/hover_tint</item>
+    </style>
+
+    <style name="AppPopupMenu" parent="Widget.AppCompat.PopupMenu">
+        <item name="android:popupBackground">@drawable/popup_menu_bg</item>
+        <item name="android:textAppearanceLargePopupMenu">@style/PopupMenuTextAppearance</item>
+        <item name="android:textAppearanceSmallPopupMenu">@style/PopupMenuTextAppearance</item>
+    </style>
+
+    <style name="PopupMenuTextAppearance" parent="TextAppearance.AppCompat.Widget.PopupMenu.Large">
+        <item name="android:textColor">@color/text_primary</item>
+        <item name="android:textSize">14sp</item>
+    </style>
 </resources>
