@@ -5,6 +5,11 @@
     <!-- ===================== OAuth config — fill these in yourself =====================
          Nothing below can be generated for you; each value comes from an account you control.
 
+         NOTE: the Google/Facebook buttons are currently hidden in activity_login.xml (people
+         tap "Continue without signing in" instead) because sign-in kept failing. The code
+         below is left in place and correctly wired — once you have real values here, just
+         flip googleButton/facebookButton back to visibility="visible" and it'll work.
+
          GOOGLE: console.cloud.google.com -> APIs & Services -> Credentials
                  -> create an OAuth 2.0 "Web application" client
                  -> paste its Client ID below (this is the "server client ID" GoogleSignInOptions needs,
@@ -23,6 +28,7 @@
     <string name="login_tagline">Your personal AI agent. Ask anything, give it a task, or tell it what you need.</string>
     <string name="continue_with_google">Continue with Google</string>
     <string name="continue_with_facebook">Continue with Facebook</string>
+    <string name="skip_login">Continue without signing in</string>
     <string name="login_disclaimer">By continuing, you agree to HML Agent\'s Terms and Privacy Policy.</string>
 
     <string name="new_chat">New chat</string>

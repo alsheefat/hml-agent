@@ -12,6 +12,14 @@
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
+    <!-- Lets the "type with voice" mic button see and launch the system speech-recognition app
+         (required for intent.resolveActivity()/launch() to work on Android 11+). -->
+    <queries>
+        <intent>
+            <action android:name="android.speech.action.RECOGNIZE_SPEECH" />
+        </intent>
+    </queries>
+
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
@@ -19,6 +27,9 @@
         android:theme="@style/Theme.HMLAgent"
         android:supportsRtl="true">
 
+        <!-- Facebook login is currently hidden from the UI (see LoginActivity/activity_login.xml),
+             but this wiring is kept correct so flipping the button back on later just works —
+             no need to re-derive this if/when facebook_app_id gets a real value. -->
         <meta-data
             android:name="com.facebook.sdk.ApplicationId"
             android:value="@string/facebook_app_id" />
@@ -29,6 +40,7 @@
         <activity
             android:name="com.facebook.FacebookActivity"
             android:configChanges="keyboard|keyboardHidden|screenLayout|screenSize|orientation"
+            android:exported="false"
             android:label="@string/app_name" />
 
         <activity
