@@ -35,6 +35,16 @@
     <string name="temporary_chat">Temporary chat</string>
     <string name="temporary_chat_banner">Temporary chat — won\'t be saved to history</string>
     <string name="recent">Recent</string>
+    <string name="conversation_options">Conversation options</string>
+    <string name="rename_conversation">Rename conversation</string>
+    <string name="save">Save</string>
+    <string name="pin_conversation">Pin</string>
+    <string name="unpin_conversation">Unpin</string>
+    <string name="share_conversation">Share conversation</string>
+    <string name="add_to_home_screen">Add to Home screen</string>
+    <string name="delete_conversation">Delete</string>
+    <string name="delete_conversation_confirm">Delete \"%1$s\"? This can\'t be undone.</string>
+    <string name="shortcuts_not_supported">Your launcher doesn\'t support Home screen shortcuts.</string>
     <string name="message_hint">Message HML Agent…</string>
     <string name="attach_file">Attach file</string>
     <string name="remove_attachment">Remove attachment</string>

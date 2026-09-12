@@ -35,19 +35,59 @@ object ConversationStore {
                     id = obj.getString("id"),
                     title = obj.getString("title"),
                     messages = messages,
-                    createdAt = obj.optLong("createdAt", System.currentTimeMillis())
+                    createdAt = obj.optLong("createdAt", System.currentTimeMillis()),
+                    pinned = obj.optBoolean("pinned", false),
+                    customTitle = obj.optBoolean("customTitle", false)
                 )
             )
         }
-        return result.sortedByDescending { it.createdAt }.toMutableList()
+        // Pinned conversations always float to the top; within each group, newest first.
+        return result
+            .sortedWith(compareByDescending<Conversation> { it.pinned }.thenByDescending { it.createdAt })
+            .toMutableList()
     }
 
-    /** Upserts a conversation by id. Empty conversations are not persisted. */
+    fun get(context: Context, id: String): Conversation? =
+        loadAll(context).find { it.id == id }
+
+    /**
+     * Upserts a conversation by id. Empty conversations are not persisted.
+     * Preserves an existing `pinned`/`customTitle` state (and the custom title
+     * itself) so that auto-saving new messages never silently un-pins a
+     * conversation or clobbers a title the user set by hand.
+     */
     fun save(context: Context, conversation: Conversation) {
         if (conversation.messages.isEmpty()) return
-        val all = loadAll(context).filterNot { it.id == conversation.id }.toMutableList()
-        all.add(0, conversation)
+        val existing = loadAll(context)
+        val previous = existing.find { it.id == conversation.id }
+        val merged = conversation.copy(
+            title = if (previous?.customTitle == true) previous.title else conversation.title,
+            pinned = previous?.pinned ?: conversation.pinned,
+            customTitle = previous?.customTitle ?: conversation.customTitle
+        )
+        val all = existing.filterNot { it.id == merged.id }.toMutableList()
+        all.add(0, merged)
         persist(context, all.take(MAX_SAVED))
+    }
+
+    fun rename(context: Context, id: String, newTitle: String) {
+        val all = loadAll(context)
+        val target = all.find { it.id == id } ?: return
+        target.title = newTitle
+        target.customTitle = true
+        persist(context, all)
+    }
+
+    fun setPinned(context: Context, id: String, pinned: Boolean) {
+        val all = loadAll(context)
+        val target = all.find { it.id == id } ?: return
+        target.pinned = pinned
+        persist(context, all)
+    }
+
+    fun delete(context: Context, id: String) {
+        val all = loadAll(context).filterNot { it.id == id }
+        persist(context, all)
     }
 
     private fun persist(context: Context, conversations: List<Conversation>) {
@@ -57,6 +97,8 @@ object ConversationStore {
             obj.put("id", c.id)
             obj.put("title", c.title)
             obj.put("createdAt", c.createdAt)
+            obj.put("pinned", c.pinned)
+            obj.put("customTitle", c.customTitle)
             val msgArray = JSONArray()
             for (m in c.messages) {
                 val mObj = JSONObject()

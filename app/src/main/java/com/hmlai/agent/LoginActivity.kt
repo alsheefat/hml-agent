@@ -33,6 +33,11 @@ class LoginActivity : AppCompatActivity() {
     private lateinit var callbackManager: CallbackManager
     private lateinit var progress: ProgressBar
 
+    // Set when this activity was opened via a pinned Home-screen shortcut for a
+    // specific conversation (LoginActivity is the exported/launcher activity, so
+    // shortcuts route through here first, then get forwarded on to MainActivity).
+    private var pendingConversationId: String? = null
+
     private val googleSignInLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
@@ -53,6 +58,8 @@ class LoginActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_login)
+
+        pendingConversationId = intent.getStringExtra(MainActivity.EXTRA_OPEN_CONVERSATION_ID)
 
         if (SessionManager.isLoggedIn(this)) {
             goToMain()
@@ -117,7 +124,9 @@ class LoginActivity : AppCompatActivity() {
     }
 
     private fun goToMain() {
-        startActivity(Intent(this, MainActivity::class.java))
+        val mainIntent = Intent(this, MainActivity::class.java)
+        pendingConversationId?.let { mainIntent.putExtra(MainActivity.EXTRA_OPEN_CONVERSATION_ID, it) }
+        startActivity(mainIntent)
         finish()
     }
 
