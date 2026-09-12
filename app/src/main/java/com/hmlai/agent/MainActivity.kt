@@ -1,10 +1,12 @@
 package com.hmlai.agent
 
 import android.Manifest
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.PorterDuff
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -120,6 +122,7 @@ class MainActivity : AppCompatActivity() {
         setupDrawer(menuButton, drawerNewChat)
         setupAccountRow(accountRow)
         requestDevicePermissionsIfNeeded()
+        requestExactAlarmPermissionIfNeeded()
 
         sendButton.setOnClickListener {
             val text = input.text.toString().trim()
@@ -143,13 +146,29 @@ class MainActivity : AppCompatActivity() {
         val permissions = listOf(
             Manifest.permission.CALL_PHONE,
             Manifest.permission.READ_CONTACTS,
-            Manifest.permission.CAMERA
+            Manifest.permission.CAMERA,
+            Manifest.permission.SEND_SMS
         )
         val needed = permissions.filter {
             checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED
         }
         if (needed.isNotEmpty()) {
             permissionLauncher.launch(needed.toTypedArray())
+        }
+    }
+
+    private fun requestExactAlarmPermissionIfNeeded() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val alarmManager = getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager
+            if (!alarmManager.canScheduleExactAlarms()) {
+                try {
+                    val intent = Intent(android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM)
+                    startActivity(intent)
+                } catch (e: Exception) {
+                    // Some devices/OEMs don't support this settings screen — reminders will
+                    // just fail gracefully with a clear message when actually scheduled.
+                }
+            }
         }
     }
 
@@ -303,6 +322,18 @@ class MainActivity : AppCompatActivity() {
         clearAttachments()
         scrollToBottom()
         persistCurrentConversation()
+
+        // Scheduled/delayed commands ("remind me to X at 5pm", "call mom
+        // at 6:30") are checked first, since they use their own time-
+        // parsing syntax that shouldn't fall through to plain commands.
+        val scheduledCommand = ScheduledActionHandler.tryParse(text)
+        if (scheduledCommand != null) {
+            val confirmation = ScheduledActionHandler.schedule(this, scheduledCommand)
+            adapter.addMessage(ChatMessage(confirmation, isUser = false))
+            scrollToBottom()
+            persistCurrentConversation()
+            return
+        }
 
         val commandResult = DeviceCommandHandler.tryHandle(this, text)
         if (commandResult.handled) {
