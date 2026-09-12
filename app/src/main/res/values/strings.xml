@@ -45,6 +45,9 @@
     <string name="delete_conversation">Delete</string>
     <string name="delete_conversation_confirm">Delete \"%1$s\"? This can\'t be undone.</string>
     <string name="shortcuts_not_supported">Your launcher doesn\'t support Home screen shortcuts.</string>
+    <string name="your_name_title">What HML calls you</string>
+    <string name="your_name_en_hint">Your name (English)</string>
+    <string name="your_name_bn_hint">আপনার নাম (বাংলা)</string>
     <string name="message_hint">Message HML Agent…</string>
     <string name="attach_file">Attach file</string>
     <string name="remove_attachment">Remove attachment</string>

@@ -103,6 +103,7 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+        UserProfileStore.seedDefaultsIfEmpty(this)
 
         drawerLayout = findViewById(R.id.drawerLayout)
         messageList = findViewById(R.id.messageList)
@@ -347,6 +348,49 @@ class MainActivity : AppCompatActivity() {
                 .setNegativeButton(android.R.string.cancel, null)
                 .show()
         }
+
+        accountRow.setOnLongClickListener {
+            showEditProfileDialog()
+            true
+        }
+    }
+
+    /** Lets the user see/correct what HML remembers about their name, in
+     * both English and Bangla — long-press the account row to open this. */
+    private fun showEditProfileDialog() {
+        val density = resources.displayMetrics.density
+        val padding = (16 * density).toInt()
+        val spacing = (10 * density).toInt()
+
+        val nameEnInput = EditText(this).apply {
+            hint = getString(R.string.your_name_en_hint)
+            setText(UserProfileStore.getNameEn(this@MainActivity))
+            setTextColor(ContextCompat.getColor(this@MainActivity, R.color.text_primary))
+            setHintTextColor(ContextCompat.getColor(this@MainActivity, R.color.text_muted))
+        }
+        val nameBnInput = EditText(this).apply {
+            hint = getString(R.string.your_name_bn_hint)
+            setText(UserProfileStore.getNameBn(this@MainActivity))
+            setTextColor(ContextCompat.getColor(this@MainActivity, R.color.text_primary))
+            setHintTextColor(ContextCompat.getColor(this@MainActivity, R.color.text_muted))
+            setPadding(0, spacing, 0, 0)
+        }
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(padding, padding / 2, padding, padding / 2)
+            addView(nameEnInput)
+            addView(nameBnInput)
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle(R.string.your_name_title)
+            .setView(container)
+            .setPositiveButton(R.string.save) { _, _ ->
+                UserProfileStore.setNameEn(this, nameEnInput.text.toString())
+                UserProfileStore.setNameBn(this, nameBnInput.text.toString())
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
     }
 
     private fun startNewChat() {
@@ -448,6 +492,7 @@ class MainActivity : AppCompatActivity() {
      * (call a contact, flashlight on/off). Only if it's NOT a device
      * command does it get sent to the AI server as a normal chat message. */
     private fun handleUserInput(text: String) {
+        UserProfileStore.maybeLearnNameFrom(this, text)
         val attachmentNames = pendingAttachments.map { queryFileName(it) }
         adapter.addMessage(ChatMessage(text, isUser = true, attachments = attachmentNames))
         clearAttachments()
@@ -483,6 +528,27 @@ class MainActivity : AppCompatActivity() {
         scrollToBottom()
         val thinkingIndex = messages.size - 1
 
+        // The full conversation so far (excluding the "…" placeholder just added)
+        // so the backend can give the model real context instead of treating
+        // every message as a fresh, memory-less exchange. hml-agent-server needs
+        // to actually read this array and pass it through as prior turns.
+        val historyArray = JSONArray()
+        for (m in messages.take(messages.size - 1)) {
+            historyArray.put(JSONObject().apply {
+                put("role", if (m.isUser) "user" else "assistant")
+                put("content", m.text)
+            })
+        }
+
+        // Small persistent memory of who the user is. hml-agent-server needs to
+        // fold this into the model's system prompt for it to actually change
+        // what the AI says — sending it alone doesn't do that on its own.
+        val profile = JSONObject().apply {
+            put("name_en", UserProfileStore.getNameEn(this@MainActivity))
+            put("name_bn", UserProfileStore.getNameBn(this@MainActivity))
+            put("notes", UserProfileStore.getNotes(this@MainActivity))
+        }
+
         val json = JSONObject().apply {
             put("message", text)
             // NOTE: the server at `serverUrl` only needs to read this if it wants to
@@ -490,6 +556,8 @@ class MainActivity : AppCompatActivity() {
             // Wire up real file upload (e.g. multipart or base64 content) once the
             // backend has an endpoint that accepts it.
             put("attachments", JSONArray(attachmentNames))
+            put("history", historyArray)
+            put("profile", profile)
         }.toString()
         val body = json.toRequestBody("application/json; charset=utf-8".toMediaType())
         val request = Request.Builder()
