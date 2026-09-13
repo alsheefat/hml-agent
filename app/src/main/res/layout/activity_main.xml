@@ -58,10 +58,10 @@
                 android:layout_width="40dp"
                 android:layout_height="40dp"
                 android:layout_marginEnd="2dp"
-                android:background="@drawable/icon_btn_bg"
+                android:background="@drawable/temporary_btn_bg"
                 android:padding="9dp"
                 android:src="@drawable/ic_temporary"
-                android:tint="@color/text_secondary"
+                android:tint="@color/blue_glow"
                 android:contentDescription="@string/temporary_chat" />
 
             <ImageButton
@@ -187,10 +187,10 @@
                     android:layout_width="42dp"
                     android:layout_height="42dp"
                     android:layout_gravity="bottom"
-                    android:background="@drawable/icon_btn_bg"
+                    android:background="@drawable/mic_button_bg"
                     android:padding="10dp"
                     android:src="@drawable/ic_mic"
-                    android:tint="@color/text_secondary"
+                    android:tint="@color/blue_glow"
                     android:contentDescription="@string/voice_input" />
 
                 <ImageButton
@@ -202,7 +202,7 @@
                     android:background="@drawable/send_button_bg"
                     android:src="@drawable/ic_send"
                     android:contentDescription="@string/send"
-                    android:tint="@color/bg_black"
+                    android:tint="@color/blue_bright"
                     android:padding="10dp" />
 
             </LinearLayout>

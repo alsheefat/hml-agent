@@ -17,10 +17,18 @@
     <color name="blue_bright">#3D74FF</color>
     <color name="blue_glow">#5E89FF</color>
 
+    <!-- Soft translucent version of blue_glow — the faint fill behind the mic/send/temporary-chat
+         "ring" buttons, giving them a bit of glow without ever being a solid filled disc. -->
+    <color name="glow_halo">#332861FF</color>
+
     <!-- Text - white/near-white for actual readability on black -->
     <color name="text_primary">#F5F6FA</color>
     <color name="text_secondary">#9AA8D6</color>
-    <color name="text_muted">#5A6699</color>
+    <!-- Was #5A6699 — too dark/desaturated against pure black to read comfortably
+         (hints, subtitles, disclaimer footer): ~3.8:1 contrast, under the readable
+         threshold. Brightened to ~5.5:1 while keeping it a clear step down from
+         text_secondary (~9:1), so the two-tier hierarchy still reads. -->
+    <color name="text_muted">#7681B0</color>
 
     <!-- Hairline / hover tints shared by the sidebar, dividers and icon buttons,
          so every subtle surface in the app uses the same low-opacity blue. -->
@@ -43,4 +51,8 @@
 
     <!-- Attachment chips + login buttons share the same subdued bordered-pill treatment -->
     <color name="chip_bg">#0D0D12</color>
+
+    <!-- For destructive actions (delete conversation). Used directly and also wired as
+         the Material colorError role in themes.xml. -->
+    <color name="color_error">#FF6B6B</color>
 </resources>

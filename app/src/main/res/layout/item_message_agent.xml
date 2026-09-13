@@ -15,6 +15,8 @@
         android:paddingHorizontal="16dp"
         android:paddingVertical="12dp"
         android:textColor="@color/text_primary"
+        android:textIsSelectable="true"
+        android:textCursorDrawable="@null"
         android:textSize="15sp" />
 
 </LinearLayout>

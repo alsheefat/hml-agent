@@ -290,7 +290,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun confirmDelete(conversation: Conversation) {
-        AlertDialog.Builder(this)
+        val dialog = AlertDialog.Builder(this)
             .setMessage(getString(R.string.delete_conversation_confirm, conversation.title))
             .setPositiveButton(R.string.delete_conversation) { _, _ ->
                 ConversationStore.delete(this, conversation.id)
@@ -301,6 +301,9 @@ class MainActivity : AppCompatActivity() {
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
+        // Only this dialog's positive button gets the red destructive-action treatment —
+        // rename/log-out keep the standard blue since they aren't destructive.
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE)?.setTextColor(ContextCompat.getColor(this, R.color.color_error))
     }
 
     private fun shareConversation(conversation: Conversation) {
@@ -441,7 +444,10 @@ class MainActivity : AppCompatActivity() {
 
     private fun updateTemporaryUi() {
         temporaryBanner.visibility = if (isTemporaryChat) View.VISIBLE else View.GONE
-        val tint = if (isTemporaryChat) R.color.blue_glow else R.color.text_secondary
+        // Ring background (temporary_btn_bg, keyed off isActivated below) carries most of the
+        // on/off signal; the icon itself stays vivid blue either way — never the muted
+        // text_secondary gray used for plain utility icons.
+        val tint = if (isTemporaryChat) R.color.text_primary else R.color.blue_glow
         temporaryChatButton.setColorFilter(ContextCompat.getColor(this, tint), PorterDuff.Mode.SRC_IN)
         temporaryChatButton.isActivated = isTemporaryChat
     }
