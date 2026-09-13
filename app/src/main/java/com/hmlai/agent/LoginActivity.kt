@@ -19,24 +19,18 @@ import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.api.ApiException
 
 /**
- * Google/Facebook sign-in kept failing to complete (OAuth console config, invalid
- * App ID, etc.), so both buttons are now hidden in activity_login.xml — the code
- * below is untouched and still correctly wired, so re-enabling either one later is
- * just a matter of flipping its visibility back on and filling in real credentials:
+ * NOTE: the buttons here call the real Google Sign-In and Facebook Login SDKs, but they
+ * can't actually complete a sign-in until you plug in your own credentials:
  *  - res/values/strings.xml -> default_web_client_id  (Google Cloud Console OAuth client)
  *  - res/values/strings.xml -> facebook_app_id / facebook_client_token (developers.facebook.com)
- * For now, "Continue without signing in" is the actual way into the app.
+ * Until those are filled in, tapping the buttons will fail with a clear error rather than
+ * silently pretending to succeed.
  */
 class LoginActivity : AppCompatActivity() {
 
     private lateinit var googleSignInClient: GoogleSignInClient
     private lateinit var callbackManager: CallbackManager
     private lateinit var progress: ProgressBar
-
-    // Set when this activity was opened via a pinned Home-screen shortcut for a
-    // specific conversation (LoginActivity is the exported/launcher activity, so
-    // shortcuts route through here first, then get forwarded on to MainActivity).
-    private var pendingConversationId: String? = null
 
     private val googleSignInLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -58,8 +52,6 @@ class LoginActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_login)
-
-        pendingConversationId = intent.getStringExtra(MainActivity.EXTRA_OPEN_CONVERSATION_ID)
 
         if (SessionManager.isLoggedIn(this)) {
             goToMain()
@@ -106,11 +98,6 @@ class LoginActivity : AppCompatActivity() {
             LoginManager.getInstance()
                 .logInWithReadPermissions(this, listOf("public_profile", "email"))
         }
-
-        findViewById<View>(R.id.skipLoginButton).setOnClickListener {
-            SessionManager.saveSession(this, "Guest", "Signed in later")
-            goToMain()
-        }
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
@@ -124,9 +111,7 @@ class LoginActivity : AppCompatActivity() {
     }
 
     private fun goToMain() {
-        val mainIntent = Intent(this, MainActivity::class.java)
-        pendingConversationId?.let { mainIntent.putExtra(MainActivity.EXTRA_OPEN_CONVERSATION_ID, it) }
-        startActivity(mainIntent)
+        startActivity(Intent(this, MainActivity::class.java))
         finish()
     }
 

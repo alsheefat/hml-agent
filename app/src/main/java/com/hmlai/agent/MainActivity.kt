@@ -12,23 +12,18 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.OpenableColumns
 import android.speech.RecognizerIntent
-import android.view.ContextThemeWrapper
 import android.view.LayoutInflater
 import android.view.View
 import android.widget.EditText
 import android.widget.HorizontalScrollView
 import android.widget.ImageButton
 import android.widget.LinearLayout
-import android.widget.PopupMenu
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
-import androidx.core.content.pm.ShortcutInfoCompat
-import androidx.core.content.pm.ShortcutManagerCompat
-import androidx.core.graphics.drawable.IconCompat
 import androidx.core.view.GravityCompat
 import androidx.drawerlayout.widget.DrawerLayout
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -103,7 +98,6 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
-        UserProfileStore.seedDefaultsIfEmpty(this)
 
         drawerLayout = findViewById(R.id.drawerLayout)
         messageList = findViewById(R.id.messageList)
@@ -188,147 +182,20 @@ class MainActivity : AppCompatActivity() {
         }
 
         val historyList = findViewById<RecyclerView>(R.id.historyList)
-        historyAdapter = HistoryAdapter(
-            ConversationStore.loadAll(this),
-            onClick = { conversation ->
-                loadConversation(conversation)
-                drawerLayout.closeDrawer(GravityCompat.START)
-            },
-            onOptionsClick = { conversation, anchor ->
-                showConversationOptions(conversation, anchor)
-            }
-        )
+        historyAdapter = HistoryAdapter(ConversationStore.loadAll(this)) { conversation ->
+            loadConversation(conversation)
+            drawerLayout.closeDrawer(GravityCompat.START)
+        }
         historyList.layoutManager = LinearLayoutManager(this)
         historyList.adapter = historyAdapter
 
         drawerLayout.addDrawerListener(object : DrawerLayout.SimpleDrawerListener() {
             override fun onDrawerOpened(drawerView: View) {
                 // Refresh in case a conversation was just saved.
-                refreshHistory()
+                historyAdapter.setConversations(ConversationStore.loadAll(this@MainActivity))
+                historyAdapter.setActive(currentConversationId)
             }
         })
-
-        // Opened from a pinned Home-screen shortcut for a specific conversation
-        // (see addHomeScreenShortcut / LoginActivity's forwarding of this extra).
-        intent.getStringExtra(EXTRA_OPEN_CONVERSATION_ID)?.let { id ->
-            ConversationStore.get(this, id)?.let { loadConversation(it) }
-        }
-    }
-
-    private fun refreshHistory() {
-        historyAdapter.setConversations(ConversationStore.loadAll(this))
-        historyAdapter.setActive(currentConversationId)
-    }
-
-    /** Long-press-free options menu (tap the ⋮ button) matching the rename / pin /
-     * share / delete pattern most chat apps use for managing conversation history. */
-    private fun showConversationOptions(conversation: Conversation, anchor: View) {
-        val themedContext = ContextThemeWrapper(this, R.style.PopupMenuOverlay)
-        val popup = PopupMenu(themedContext, anchor)
-        popup.menuInflater.inflate(R.menu.menu_history_item, popup.menu)
-        popup.menu.findItem(R.id.action_pin).setTitle(
-            if (conversation.pinned) R.string.unpin_conversation else R.string.pin_conversation
-        )
-        popup.setOnMenuItemClickListener { item ->
-            when (item.itemId) {
-                R.id.action_rename -> {
-                    showRenameDialog(conversation)
-                    true
-                }
-                R.id.action_pin -> {
-                    ConversationStore.setPinned(this, conversation.id, !conversation.pinned)
-                    refreshHistory()
-                    true
-                }
-                R.id.action_share -> {
-                    shareConversation(conversation)
-                    true
-                }
-                R.id.action_shortcut -> {
-                    addHomeScreenShortcut(conversation)
-                    true
-                }
-                R.id.action_delete -> {
-                    confirmDelete(conversation)
-                    true
-                }
-                else -> false
-            }
-        }
-        popup.show()
-    }
-
-    private fun showRenameDialog(conversation: Conversation) {
-        val padding = (16 * resources.displayMetrics.density).toInt()
-        val editText = EditText(this).apply {
-            setText(conversation.title)
-            setSelection(text.length)
-            setPadding(padding, padding / 2, padding, padding / 2)
-        }
-        AlertDialog.Builder(this)
-            .setTitle(R.string.rename_conversation)
-            .setView(editText)
-            .setPositiveButton(R.string.save) { _, _ ->
-                val newTitle = editText.text.toString().trim()
-                if (newTitle.isNotEmpty()) {
-                    ConversationStore.rename(this, conversation.id, newTitle)
-                    refreshHistory()
-                }
-            }
-            .setNegativeButton(android.R.string.cancel, null)
-            .show()
-    }
-
-    private fun confirmDelete(conversation: Conversation) {
-        AlertDialog.Builder(this)
-            .setMessage(getString(R.string.delete_conversation_confirm, conversation.title))
-            .setPositiveButton(R.string.delete_conversation) { _, _ ->
-                ConversationStore.delete(this, conversation.id)
-                if (conversation.id == currentConversationId) {
-                    startNewChat()
-                }
-                refreshHistory()
-            }
-            .setNegativeButton(android.R.string.cancel, null)
-            .show()
-    }
-
-    private fun shareConversation(conversation: Conversation) {
-        val transcript = buildString {
-            appendLine(conversation.title)
-            appendLine()
-            for (m in conversation.messages) {
-                append(if (m.isUser) "You: " else "HML Agent: ")
-                appendLine(m.text)
-            }
-        }
-        val sendIntent = Intent(Intent.ACTION_SEND).apply {
-            type = "text/plain"
-            putExtra(Intent.EXTRA_SUBJECT, conversation.title)
-            putExtra(Intent.EXTRA_TEXT, transcript)
-        }
-        startActivity(Intent.createChooser(sendIntent, getString(R.string.share_conversation)))
-    }
-
-    private fun addHomeScreenShortcut(conversation: Conversation) {
-        if (!ShortcutManagerCompat.isRequestPinShortcutSupported(this)) {
-            Toast.makeText(this, R.string.shortcuts_not_supported, Toast.LENGTH_SHORT).show()
-            return
-        }
-        // Routed through LoginActivity (not MainActivity directly) since it's the
-        // exported/launcher activity — it forwards straight back here once a
-        // session already exists, which is true for every logged-in or guest user.
-        val shortcutIntent = Intent(this, LoginActivity::class.java).apply {
-            action = Intent.ACTION_MAIN
-            putExtra(EXTRA_OPEN_CONVERSATION_ID, conversation.id)
-        }
-        val shortcut = ShortcutInfoCompat.Builder(this, "conversation_${conversation.id}")
-            .setShortLabel(conversation.title.take(10))
-            .setLongLabel(conversation.title)
-            .setIcon(IconCompat.createWithResource(this, R.mipmap.ic_launcher))
-            .setIntent(shortcutIntent)
-            .build()
-        ShortcutManagerCompat.requestPinShortcut(this, shortcut, null)
     }
 
     private fun setupAccountRow(accountRow: View) {
@@ -348,49 +215,6 @@ class MainActivity : AppCompatActivity() {
                 .setNegativeButton(android.R.string.cancel, null)
                 .show()
         }
-
-        accountRow.setOnLongClickListener {
-            showEditProfileDialog()
-            true
-        }
-    }
-
-    /** Lets the user see/correct what HML remembers about their name, in
-     * both English and Bangla — long-press the account row to open this. */
-    private fun showEditProfileDialog() {
-        val density = resources.displayMetrics.density
-        val padding = (16 * density).toInt()
-        val spacing = (10 * density).toInt()
-
-        val nameEnInput = EditText(this).apply {
-            hint = getString(R.string.your_name_en_hint)
-            setText(UserProfileStore.getNameEn(this@MainActivity))
-            setTextColor(ContextCompat.getColor(this@MainActivity, R.color.text_primary))
-            setHintTextColor(ContextCompat.getColor(this@MainActivity, R.color.text_muted))
-        }
-        val nameBnInput = EditText(this).apply {
-            hint = getString(R.string.your_name_bn_hint)
-            setText(UserProfileStore.getNameBn(this@MainActivity))
-            setTextColor(ContextCompat.getColor(this@MainActivity, R.color.text_primary))
-            setHintTextColor(ContextCompat.getColor(this@MainActivity, R.color.text_muted))
-            setPadding(0, spacing, 0, 0)
-        }
-        val container = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(padding, padding / 2, padding, padding / 2)
-            addView(nameEnInput)
-            addView(nameBnInput)
-        }
-
-        AlertDialog.Builder(this)
-            .setTitle(R.string.your_name_title)
-            .setView(container)
-            .setPositiveButton(R.string.save) { _, _ ->
-                UserProfileStore.setNameEn(this, nameEnInput.text.toString())
-                UserProfileStore.setNameBn(this, nameBnInput.text.toString())
-            }
-            .setNegativeButton(android.R.string.cancel, null)
-            .show()
     }
 
     private fun startNewChat() {
@@ -400,7 +224,8 @@ class MainActivity : AppCompatActivity() {
         adapter.clear()
         clearAttachments()
         updateTemporaryUi()
-        refreshHistory()
+        historyAdapter.setConversations(ConversationStore.loadAll(this))
+        historyAdapter.setActive(currentConversationId)
     }
 
     private fun startTemporaryChat() {
@@ -492,7 +317,6 @@ class MainActivity : AppCompatActivity() {
      * (call a contact, flashlight on/off). Only if it's NOT a device
      * command does it get sent to the AI server as a normal chat message. */
     private fun handleUserInput(text: String) {
-        UserProfileStore.maybeLearnNameFrom(this, text)
         val attachmentNames = pendingAttachments.map { queryFileName(it) }
         adapter.addMessage(ChatMessage(text, isUser = true, attachments = attachmentNames))
         clearAttachments()
@@ -528,27 +352,6 @@ class MainActivity : AppCompatActivity() {
         scrollToBottom()
         val thinkingIndex = messages.size - 1
 
-        // The full conversation so far (excluding the "…" placeholder just added)
-        // so the backend can give the model real context instead of treating
-        // every message as a fresh, memory-less exchange. hml-agent-server needs
-        // to actually read this array and pass it through as prior turns.
-        val historyArray = JSONArray()
-        for (m in messages.take(messages.size - 1)) {
-            historyArray.put(JSONObject().apply {
-                put("role", if (m.isUser) "user" else "assistant")
-                put("content", m.text)
-            })
-        }
-
-        // Small persistent memory of who the user is. hml-agent-server needs to
-        // fold this into the model's system prompt for it to actually change
-        // what the AI says — sending it alone doesn't do that on its own.
-        val profile = JSONObject().apply {
-            put("name_en", UserProfileStore.getNameEn(this@MainActivity))
-            put("name_bn", UserProfileStore.getNameBn(this@MainActivity))
-            put("notes", UserProfileStore.getNotes(this@MainActivity))
-        }
-
         val json = JSONObject().apply {
             put("message", text)
             // NOTE: the server at `serverUrl` only needs to read this if it wants to
@@ -556,8 +359,6 @@ class MainActivity : AppCompatActivity() {
             // Wire up real file upload (e.g. multipart or base64 content) once the
             // backend has an endpoint that accepts it.
             put("attachments", JSONArray(attachmentNames))
-            put("history", historyArray)
-            put("profile", profile)
         }.toString()
         val body = json.toRequestBody("application/json; charset=utf-8".toMediaType())
         val request = Request.Builder()
@@ -612,11 +413,5 @@ class MainActivity : AppCompatActivity() {
     override fun onPause() {
         super.onPause()
         persistCurrentConversation()
-    }
-
-    companion object {
-        /** Intent extra used to jump straight to a specific conversation when the
-         * app is launched from a pinned Home-screen shortcut. */
-        const val EXTRA_OPEN_CONVERSATION_ID = "open_conversation_id"
     }
 }
