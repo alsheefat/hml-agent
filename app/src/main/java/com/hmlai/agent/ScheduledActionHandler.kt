@@ -5,7 +5,18 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
+import okhttp3.Call
+import okhttp3.Callback
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONObject
+import java.io.IOException
 import java.util.Calendar
+import java.util.concurrent.TimeUnit
 import java.util.regex.Pattern
 
 data class ScheduledCommand(
@@ -42,6 +53,94 @@ object ScheduledActionHandler {
         }
 
         return null
+    }
+
+    /** Same as tryParse, but if the fast local patterns don't match, asks
+     * the server to understand the scheduling intent — covers natural
+     * phrasing variation and Bangla ("Abbu ke 6 tay call koro", "amake
+     * 9 tay reminder dao") the same way the fast path only covers
+     * "remind me to X at Y" / "call X at Y" literally. */
+    fun tryParseWithAiFallback(rawText: String, callback: (ScheduledCommand?) -> Unit) {
+        val localResult = tryParse(rawText)
+        if (localResult != null) {
+            callback(localResult)
+            return
+        }
+
+        classifyViaServer(rawText) { classification ->
+            if (classification == null || !classification.isCommand || !classification.isScheduled) {
+                callback(null)
+                return@classifyViaServer
+            }
+            if (classification.type != "reminder" && classification.type != "call") {
+                callback(null)
+                return@classifyViaServer
+            }
+
+            val whenText = classification.time + (if (classification.tomorrow) " tomorrow" else "")
+            val triggerAt = parseTimeExpression(whenText)
+            if (triggerAt == null) {
+                callback(null)
+                return@classifyViaServer
+            }
+
+            callback(ScheduledCommand(triggerAt, classification.type, classification.target, rawText))
+        }
+    }
+
+    private data class ScheduleClassification(
+        val isCommand: Boolean,
+        val type: String,
+        val target: String,
+        val isScheduled: Boolean,
+        val time: String,
+        val tomorrow: Boolean
+    )
+
+    private fun classifyViaServer(text: String, callback: (ScheduleClassification?) -> Unit) {
+        val mainHandler = Handler(Looper.getMainLooper())
+        val client = OkHttpClient.Builder()
+            .connectTimeout(10, TimeUnit.SECONDS)
+            .readTimeout(10, TimeUnit.SECONDS)
+            .build()
+
+        val json = JSONObject().put("message", text).toString()
+        val body = json.toRequestBody("application/json; charset=utf-8".toMediaType())
+        val request = Request.Builder()
+            .url("https://hml-agent-server.onrender.com/classify-command")
+            .post(body)
+            .build()
+
+        client.newCall(request).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                mainHandler.post { callback(null) }
+            }
+
+            override fun onResponse(call: Call, response: okhttp3.Response) {
+                val responseBody = response.body?.string()
+                mainHandler.post {
+                    if (!response.isSuccessful || responseBody == null) {
+                        callback(null)
+                        return@post
+                    }
+                    try {
+                        val result = JSONObject(responseBody)
+                        callback(
+                            ScheduleClassification(
+                                isCommand = result.optBoolean("is_command", false),
+                                type = result.optString("type", "none"),
+                                target = result.optString("target", ""),
+                                isScheduled = result.optBoolean("is_scheduled", false),
+                                time = result.optString("time", ""),
+                                tomorrow = result.optBoolean("tomorrow", false)
+                            )
+                        )
+                    } catch (e: Exception) {
+                        callback(null)
+                    }
+                }
+            }
+        })
     }
 
     /** Parses simple time expressions like "5pm", "5:30pm", "17:00",

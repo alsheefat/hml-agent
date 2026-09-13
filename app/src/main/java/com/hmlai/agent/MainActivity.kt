@@ -520,8 +520,13 @@ class MainActivity : AppCompatActivity() {
     // ---------------------------------------------------------------- sending
 
     /** Every message first goes through the local device-command handler
-     * (call a contact, flashlight on/off). Only if it's NOT a device
-     * command does it get sent to the AI server as a normal chat message. */
+     * (call a contact, flashlight on/off, etc) and the scheduled-action
+     * parser (reminders, timed calls). Both fall back to asking the
+     * server to understand the intent when the fast local patterns don't
+     * match — this is what lets natural phrasing variations ("Abbu ke
+     * call deo" as well as "call Abbu") both work as the same command,
+     * instead of only recognizing one fixed wording. Only if a message is
+     * genuinely NOT a command does it get sent to the AI server as chat. */
     private fun handleUserInput(text: String) {
         UserProfileStore.maybeLearnNameFrom(this, text)
         val attachmentNames = pendingAttachments.map { queryFileName(it) }
@@ -533,34 +538,36 @@ class MainActivity : AppCompatActivity() {
         // Scheduled/delayed commands ("remind me to X at 5pm", "call mom
         // at 6:30") are checked first, since they use their own time-
         // parsing syntax that shouldn't fall through to plain commands.
-        val scheduledCommand = ScheduledActionHandler.tryParse(text)
-        if (scheduledCommand != null) {
-            val confirmation = ScheduledActionHandler.schedule(this, scheduledCommand)
-            adapter.addMessage(ChatMessage(confirmation, isUser = false))
-            scrollToBottom()
-            persistCurrentConversation()
-            return
-        }
+        ScheduledActionHandler.tryParseWithAiFallback(text) { scheduledCommand ->
+            if (scheduledCommand != null) {
+                val confirmation = ScheduledActionHandler.schedule(this, scheduledCommand)
+                adapter.addMessage(ChatMessage(confirmation, isUser = false))
+                scrollToBottom()
+                persistCurrentConversation()
+                return@tryParseWithAiFallback
+            }
 
-        val commandResult = DeviceCommandHandler.tryHandle(this, text)
-        if (commandResult.handled) {
-            adapter.addMessage(ChatMessage(commandResult.responseText, isUser = false))
-            scrollToBottom()
-            persistCurrentConversation()
-            return
-        }
+            DeviceCommandHandler.tryHandleWithAiFallback(this, text) { commandResult ->
+                if (commandResult != null && commandResult.handled) {
+                    adapter.addMessage(ChatMessage(commandResult.responseText, isUser = false))
+                    scrollToBottom()
+                    persistCurrentConversation()
+                    return@tryHandleWithAiFallback
+                }
 
-        // Full autonomous on-screen control ("in Instagram, like the top post",
-        // "scroll through my feed and open the first video", "control my screen
-        // and buy X on Amazon") — the "ultimate power" tier. Only triggers on
-        // an explicit autonomy phrase, never silently, since this is the most
-        // powerful and most consequential capability the app has.
-        if (isAutonomousControlRequest(text)) {
-            startAutonomousTask(text)
-            return
-        }
+                // Full autonomous on-screen control ("in Instagram, like the top post",
+                // "scroll through my feed and open the first video", "control my screen
+                // and buy X on Amazon") — the "ultimate power" tier. Only triggers on
+                // an explicit autonomy phrase, never silently, since this is the most
+                // powerful and most consequential capability the app has.
+                if (isAutonomousControlRequest(text)) {
+                    startAutonomousTask(text)
+                    return@tryHandleWithAiFallback
+                }
 
-        sendToServer(text, attachmentNames)
+                sendToServer(text, attachmentNames)
+            }
+        }
     }
 
     private fun isAutonomousControlRequest(text: String): Boolean {

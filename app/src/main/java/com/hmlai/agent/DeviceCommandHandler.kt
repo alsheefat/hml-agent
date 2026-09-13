@@ -7,9 +7,20 @@ import android.content.pm.PackageManager
 import android.database.Cursor
 import android.hardware.camera2.CameraManager
 import android.net.Uri
+import android.os.Handler
+import android.os.Looper
 import android.provider.ContactsContract
 import android.telecom.TelecomManager
 import androidx.core.content.ContextCompat
+import okhttp3.Call
+import okhttp3.Callback
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONObject
+import java.io.IOException
+import java.util.concurrent.TimeUnit
 
 /**
  * Result of trying to parse+run a message as a local device command.
@@ -82,6 +93,96 @@ object DeviceCommandHandler {
         }
 
         return CommandResult(false)
+    }
+
+    /** Same as tryHandle, but if none of the fast local patterns match,
+     * asks the server to understand the intent (handles natural language
+     * variation the local regexes can't cover — different phrasings,
+     * Bangla words like "দেও"/"koro"/"den" all meaning the same thing).
+     * Calls onResult with the outcome; onResult(null) means it's a
+     * normal chat message, not a command. */
+    fun tryHandleWithAiFallback(
+        context: Context,
+        rawText: String,
+        onResult: (CommandResult?) -> Unit
+    ) {
+        val localResult = tryHandle(context, rawText)
+        if (localResult.handled) {
+            onResult(localResult)
+            return
+        }
+
+        classifyViaServer(rawText) { classification ->
+            if (classification == null || !classification.isCommand) {
+                onResult(null)
+                return@classifyViaServer
+            }
+
+            val result = when (classification.type) {
+                "call" -> CommandResult(true, placeCall(context, classification.target))
+                "sms" -> CommandResult(true, openSms(context, classification.target, classification.messageText))
+                "flashlight_on" -> CommandResult(true, setFlashlight(context, true))
+                "flashlight_off" -> CommandResult(true, setFlashlight(context, false))
+                "open_app" -> CommandResult(true, openApp(context, classification.target))
+                "youtube" -> CommandResult(true, openYoutubeSearch(context, classification.target))
+                "music" -> CommandResult(true, playMusic(context, classification.target))
+                "website" -> CommandResult(true, openWebsite(context, classification.target))
+                "search" -> CommandResult(true, openGoogleSearch(context, classification.target))
+                else -> null
+            }
+            onResult(result)
+        }
+    }
+
+    private data class CommandClassification(
+        val isCommand: Boolean,
+        val type: String,
+        val target: String,
+        val messageText: String
+    )
+
+    private fun classifyViaServer(text: String, callback: (CommandClassification?) -> Unit) {
+        val mainHandler = Handler(Looper.getMainLooper())
+        val client = OkHttpClient.Builder()
+            .connectTimeout(10, TimeUnit.SECONDS)
+            .readTimeout(10, TimeUnit.SECONDS)
+            .build()
+
+        val json = JSONObject().put("message", text).toString()
+        val body = json.toRequestBody("application/json; charset=utf-8".toMediaType())
+        val request = Request.Builder()
+            .url("https://hml-agent-server.onrender.com/classify-command")
+            .post(body)
+            .build()
+
+        client.newCall(request).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                mainHandler.post { callback(null) }
+            }
+
+            override fun onResponse(call: Call, response: okhttp3.Response) {
+                val responseBody = response.body?.string()
+                mainHandler.post {
+                    if (!response.isSuccessful || responseBody == null) {
+                        callback(null)
+                        return@post
+                    }
+                    try {
+                        val result = JSONObject(responseBody)
+                        callback(
+                            CommandClassification(
+                                isCommand = result.optBoolean("is_command", false),
+                                type = result.optString("type", "none"),
+                                target = result.optString("target", ""),
+                                messageText = result.optString("message_text", "")
+                            )
+                        )
+                    } catch (e: Exception) {
+                        callback(null)
+                    }
+                }
+            }
+        })
     }
 
     // ============================================================
