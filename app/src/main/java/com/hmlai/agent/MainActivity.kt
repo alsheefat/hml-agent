@@ -24,6 +24,7 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.content.pm.ShortcutInfoCompat
@@ -275,7 +276,7 @@ class MainActivity : AppCompatActivity() {
             setSelection(text.length)
             setPadding(padding, padding / 2, padding, padding / 2)
         }
-        AlertDialog.Builder(this)
+        MaterialAlertDialogBuilder(this)
             .setTitle(R.string.rename_conversation)
             .setView(editText)
             .setPositiveButton(R.string.save) { _, _ ->
@@ -290,7 +291,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun confirmDelete(conversation: Conversation) {
-        val dialog = AlertDialog.Builder(this)
+        val dialog = MaterialAlertDialogBuilder(this)
             .setMessage(getString(R.string.delete_conversation_confirm, conversation.title))
             .setPositiveButton(R.string.delete_conversation) { _, _ ->
                 ConversationStore.delete(this, conversation.id)
@@ -356,14 +357,14 @@ class MainActivity : AppCompatActivity() {
             } else {
                 getString(R.string.autonomous_control_off)
             }
-            AlertDialog.Builder(this)
+            MaterialAlertDialogBuilder(this)
                 .setTitle(R.string.autonomous_control)
                 .setMessage(statusText)
                 .setPositiveButton(R.string.enable_autonomous_control) { _, _ ->
                     startActivity(Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS))
                 }
                 .setNegativeButton(R.string.log_out) { _, _ ->
-                    AlertDialog.Builder(this)
+                    MaterialAlertDialogBuilder(this)
                         .setMessage(R.string.log_out_confirm)
                         .setPositiveButton(R.string.log_out) { _, _ ->
                             SessionManager.clear(this)
@@ -410,7 +411,7 @@ class MainActivity : AppCompatActivity() {
             addView(nameBnInput)
         }
 
-        AlertDialog.Builder(this)
+        MaterialAlertDialogBuilder(this)
             .setTitle(R.string.your_name_title)
             .setView(container)
             .setPositiveButton(R.string.save) { _, _ ->
@@ -444,9 +445,9 @@ class MainActivity : AppCompatActivity() {
 
     private fun updateTemporaryUi() {
         temporaryBanner.visibility = if (isTemporaryChat) View.VISIBLE else View.GONE
-        // Ring background (temporary_btn_bg, keyed off isActivated below) carries most of the
-        // on/off signal; the icon itself stays vivid blue either way — never the muted
-        // text_secondary gray used for plain utility icons.
+        // Ring background (temporary_btn_bg, keyed off isActivated below) gets a thicker
+        // stroke when active; icon brightens to white so "on" is unmistakable without
+        // introducing a second color into the otherwise all-blue_glow button system.
         val tint = if (isTemporaryChat) R.color.text_primary else R.color.blue_glow
         temporaryChatButton.setColorFilter(ContextCompat.getColor(this, tint), PorterDuff.Mode.SRC_IN)
         temporaryChatButton.isActivated = isTemporaryChat

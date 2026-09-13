@@ -127,28 +127,47 @@
                 android:textStyle="bold" />
         </LinearLayout>
 
-        <!-- Google/Facebook sign-in couldn't be gotten working reliably, so this is the
-             actual way into the app for now. Both buttons above are kept (just hidden) —
-             see the note in strings.xml for how to bring them back. -->
+        <!-- Lighter-weight than the two real sign-in options above — this is the
+             fallback path, so it reads as optional rather than a third equal choice. -->
         <LinearLayout
-            android:id="@+id/skipLoginButton"
             android:layout_width="match_parent"
-            android:layout_height="52dp"
-            android:layout_marginTop="34dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="22dp"
             android:orientation="horizontal"
-            android:gravity="center"
-            android:background="@drawable/login_button_bg"
-            android:clickable="true"
-            android:focusable="true">
+            android:gravity="center_vertical">
+
+            <View
+                android:layout_width="0dp"
+                android:layout_height="1dp"
+                android:layout_weight="1"
+                android:background="@color/line" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="@string/skip_login"
-                android:textColor="@color/text_primary"
-                android:textSize="15sp"
-                android:textStyle="bold" />
+                android:layout_marginHorizontal="10dp"
+                android:text="@string/or_divider"
+                android:textColor="@color/text_muted"
+                android:textSize="11sp" />
+
+            <View
+                android:layout_width="0dp"
+                android:layout_height="1dp"
+                android:layout_weight="1"
+                android:background="@color/line" />
         </LinearLayout>
+
+        <TextView
+            android:id="@+id/skipLoginButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:padding="8dp"
+            android:background="?attr/selectableItemBackground"
+            android:text="@string/skip_login"
+            android:textColor="@color/blue_glow"
+            android:textSize="14sp"
+            android:textStyle="bold" />
 
         <ProgressBar
             android:id="@+id/loginProgress"

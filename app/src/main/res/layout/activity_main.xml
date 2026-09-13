@@ -33,7 +33,7 @@
                 android:background="@drawable/icon_btn_bg"
                 android:padding="9dp"
                 android:src="@drawable/ic_menu"
-                android:tint="@color/text_secondary"
+                android:tint="@color/blue_glow"
                 android:contentDescription="@string/recent" />
 
             <ImageView
@@ -71,7 +71,7 @@
                 android:background="@drawable/icon_btn_bg"
                 android:padding="9dp"
                 android:src="@drawable/ic_add"
-                android:tint="@color/text_secondary"
+                android:tint="@color/blue_glow"
                 android:contentDescription="@string/new_chat" />
 
         </LinearLayout>
@@ -163,7 +163,7 @@
                     android:background="@drawable/icon_btn_bg"
                     android:padding="10dp"
                     android:src="@drawable/ic_attach"
-                    android:tint="@color/text_secondary"
+                    android:tint="@color/blue_glow"
                     android:contentDescription="@string/attach_file" />
 
                 <EditText
@@ -187,7 +187,7 @@
                     android:layout_width="42dp"
                     android:layout_height="42dp"
                     android:layout_gravity="bottom"
-                    android:background="@drawable/mic_button_bg"
+                    android:background="@drawable/icon_btn_bg"
                     android:padding="10dp"
                     android:src="@drawable/ic_mic"
                     android:tint="@color/blue_glow"
@@ -199,10 +199,10 @@
                     android:layout_height="42dp"
                     android:layout_gravity="bottom"
                     android:layout_marginStart="2dp"
-                    android:background="@drawable/send_button_bg"
+                    android:background="@drawable/icon_btn_bg"
                     android:src="@drawable/ic_send"
                     android:contentDescription="@string/send"
-                    android:tint="@color/blue_bright"
+                    android:tint="@color/blue_glow"
                     android:padding="10dp" />
 
             </LinearLayout>
@@ -280,14 +280,14 @@
                 android:layout_width="16dp"
                 android:layout_height="16dp"
                 android:src="@drawable/ic_add"
-                android:tint="#FFFFFF" />
+                android:tint="@color/blue_glow" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="8dp"
                 android:text="@string/new_chat"
-                android:textColor="#FFFFFF"
+                android:textColor="@color/blue_glow"
                 android:textSize="14sp"
                 android:textStyle="bold" />
         </LinearLayout>
@@ -314,6 +314,7 @@
         <View
             android:layout_width="match_parent"
             android:layout_height="1dp"
+            android:layout_marginTop="8dp"
             android:layout_marginBottom="10dp"
             android:background="@color/line" />
 
