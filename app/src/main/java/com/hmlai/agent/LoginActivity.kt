@@ -16,6 +16,7 @@ import com.facebook.login.LoginResult
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInClient
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
+import com.google.android.gms.auth.api.signin.GoogleSignInStatusCodes
 import com.google.android.gms.common.api.ApiException
 
 /**
@@ -47,11 +48,14 @@ class LoginActivity : AppCompatActivity() {
             onLoginSuccess(account.displayName ?: "Google user", account.email ?: "Signed in with Google")
         } catch (e: ApiException) {
             showProgress(false)
-            Toast.makeText(
-                this,
-                "Google sign-in failed (code ${e.statusCode}). Check default_web_client_id in strings.xml.",
-                Toast.LENGTH_LONG
-            ).show()
+            // 12501 = the user just backed out of the Google picker — not an error worth a toast.
+            if (e.statusCode != GoogleSignInStatusCodes.SIGN_IN_CANCELLED) {
+                Toast.makeText(
+                    this,
+                    "Google sign-in failed (code ${e.statusCode}). You can still tap \"Sign in Later\".",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
         }
     }
 

@@ -17,29 +17,40 @@ object ConversationStore {
     fun loadAll(context: Context): MutableList<Conversation> {
         val raw = prefs(context).getString(KEY, null) ?: return mutableListOf()
         val result = mutableListOf<Conversation>()
-        val array = JSONArray(raw)
+        // loadAll() runs while MainActivity is opening. One corrupted/legacy entry used to
+        // throw a JSONException here and crash the whole app on launch, so each conversation
+        // is parsed on its own and a bad one is skipped instead of taking everything down.
+        val array = try {
+            JSONArray(raw)
+        } catch (e: Exception) {
+            return mutableListOf()
+        }
         for (i in 0 until array.length()) {
-            val obj = array.getJSONObject(i)
-            val messages = mutableListOf<ChatMessage>()
-            val msgArray = obj.getJSONArray("messages")
-            for (j in 0 until msgArray.length()) {
-                val m = msgArray.getJSONObject(j)
-                val attachments = mutableListOf<String>()
-                m.optJSONArray("attachments")?.let { attArray ->
-                    for (k in 0 until attArray.length()) attachments.add(attArray.getString(k))
+            try {
+                val obj = array.getJSONObject(i)
+                val messages = mutableListOf<ChatMessage>()
+                val msgArray = obj.getJSONArray("messages")
+                for (j in 0 until msgArray.length()) {
+                    val m = msgArray.getJSONObject(j)
+                    val attachments = mutableListOf<String>()
+                    m.optJSONArray("attachments")?.let { attArray ->
+                        for (k in 0 until attArray.length()) attachments.add(attArray.getString(k))
+                    }
+                    messages.add(ChatMessage(m.getString("text"), m.getBoolean("isUser"), attachments))
                 }
-                messages.add(ChatMessage(m.getString("text"), m.getBoolean("isUser"), attachments))
-            }
-            result.add(
-                Conversation(
-                    id = obj.getString("id"),
-                    title = obj.getString("title"),
-                    messages = messages,
-                    createdAt = obj.optLong("createdAt", System.currentTimeMillis()),
-                    pinned = obj.optBoolean("pinned", false),
-                    customTitle = obj.optBoolean("customTitle", false)
+                result.add(
+                    Conversation(
+                        id = obj.getString("id"),
+                        title = obj.getString("title"),
+                        messages = messages,
+                        createdAt = obj.optLong("createdAt", System.currentTimeMillis()),
+                        pinned = obj.optBoolean("pinned", false),
+                        customTitle = obj.optBoolean("customTitle", false)
+                    )
                 )
-            )
+            } catch (e: Exception) {
+                // Skip just this entry.
+            }
         }
         // Pinned conversations always float to the top; within each group, newest first.
         return result

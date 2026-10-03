@@ -97,12 +97,17 @@ object ScheduledActionHandler {
         val tomorrow: Boolean
     )
 
-    private fun classifyViaServer(text: String, callback: (ScheduleClassification?) -> Unit) {
-        val mainHandler = Handler(Looper.getMainLooper())
-        val client = OkHttpClient.Builder()
+    // One shared client instead of a new connection/thread pool per message.
+    private val classifyClient: OkHttpClient by lazy {
+        OkHttpClient.Builder()
             .connectTimeout(10, TimeUnit.SECONDS)
             .readTimeout(10, TimeUnit.SECONDS)
             .build()
+    }
+
+    private fun classifyViaServer(text: String, callback: (ScheduleClassification?) -> Unit) {
+        val mainHandler = Handler(Looper.getMainLooper())
+        val client = classifyClient
 
         val json = JSONObject().put("message", text).toString()
         val body = json.toRequestBody("application/json; charset=utf-8".toMediaType())
@@ -186,7 +191,9 @@ object ScheduledActionHandler {
             putExtra("payload", command.payload)
         }
 
-        val requestCode = command.triggerAtMillis.toInt()
+        // Time + text, not time alone: two reminders set for the same minute used to share a
+        // request code, so the second silently replaced the first.
+        val requestCode = (command.triggerAtMillis.toString() + command.actionType + command.payload).hashCode()
         val pendingIntent = PendingIntent.getBroadcast(
             context,
             requestCode,
@@ -234,7 +241,7 @@ object ScheduledActionHandler {
             putExtra("payload", goal)
         }
 
-        val requestCode = triggerAtMillis.toInt()
+        val requestCode = (triggerAtMillis.toString() + "autonomous" + goal).hashCode()
         val pendingIntent = PendingIntent.getBroadcast(
             context,
             requestCode,

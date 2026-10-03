@@ -84,7 +84,12 @@ class MainActivity : AppCompatActivity() {
     // dangerous/runtime permissions on API 26+.
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
-    ) { /* results handled implicitly — DeviceCommandHandler re-checks permission when a command runs */ }
+    ) {
+        // Results are handled implicitly — DeviceCommandHandler re-checks permission when a
+        // command runs. Only AFTER this dialog closes do we offer the exact-alarm screen,
+        // so the two never fight over the screen at the same time.
+        requestExactAlarmPermissionIfNeeded()
+    }
 
     private val filePickerLauncher = registerForActivityResult(
         ActivityResultContracts.OpenMultipleDocuments()
@@ -118,8 +123,11 @@ class MainActivity : AppCompatActivity() {
         val sendButton = findViewById<ImageButton>(R.id.sendButton)
         val newChatButton = findViewById<ImageButton>(R.id.newChatButton)
         val menuButton = findViewById<ImageButton>(R.id.menuButton)
-        val attachButton = findViewById<ImageButton>(R.id.attachButton)
-        val micButton = findViewById<ImageButton>(R.id.micButton)
+        // These two are labeled "pill" buttons (LinearLayout in activity_main.xml), not
+        // ImageButtons — casting them to ImageButton threw a ClassCastException the moment
+        // MainActivity opened, which is what showed "close app" after Sign in Later.
+        val attachButton = findViewById<View>(R.id.attachButton)
+        val micButton = findViewById<View>(R.id.micButton)
         val drawerNewChat = findViewById<View>(R.id.drawerNewChat)
         val accountRow = findViewById<View>(R.id.accountRow)
         temporaryChatButton = findViewById(R.id.temporaryChatButton)
@@ -134,7 +142,6 @@ class MainActivity : AppCompatActivity() {
         setupCommandChips()
         updateHomeVisibility()
         requestDevicePermissionsIfNeeded()
-        requestExactAlarmPermissionIfNeeded()
 
         sendButton.setOnClickListener {
             val text = input.text.toString().trim()
@@ -155,26 +162,39 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun requestDevicePermissionsIfNeeded() {
-        val permissions = listOf(
+        val permissions = mutableListOf(
             Manifest.permission.CALL_PHONE,
             Manifest.permission.READ_CONTACTS,
             Manifest.permission.CAMERA,
             Manifest.permission.SEND_SMS
         )
+        // Android 13+ never shows reminder notifications unless this is granted at runtime.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            permissions.add(Manifest.permission.POST_NOTIFICATIONS)
+        }
         val needed = permissions.filter {
             checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED
         }
         if (needed.isNotEmpty()) {
             permissionLauncher.launch(needed.toTypedArray())
+        } else {
+            requestExactAlarmPermissionIfNeeded()
         }
     }
 
     private fun requestExactAlarmPermissionIfNeeded() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             val alarmManager = getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager
-            if (!alarmManager.canScheduleExactAlarms()) {
+            val prefs = getSharedPreferences("hml_agent_prefs", Context.MODE_PRIVATE)
+            // Only ask once. Previously this bounced the user out to Settings on EVERY launch
+            // until they granted it; scheduling a reminder still explains how to grant it later.
+            if (!alarmManager.canScheduleExactAlarms() && !prefs.getBoolean("asked_exact_alarm", false)) {
+                prefs.edit().putBoolean("asked_exact_alarm", true).apply()
                 try {
-                    val intent = Intent(android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM)
+                    val intent = Intent(
+                        android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
+                        Uri.parse("package:$packageName")
+                    )
                     startActivity(intent)
                 } catch (e: Exception) {
                     // Some devices/OEMs don't support this settings screen — reminders will
@@ -219,17 +239,22 @@ class MainActivity : AppCompatActivity() {
         intent.getStringExtra(EXTRA_OPEN_CONVERSATION_ID)?.let { id ->
             ConversationStore.get(this, id)?.let { loadConversation(it) }
         }
+        // Consume the extras so a screen rotation / activity re-creation doesn't replay them
+        // (which would re-run a scheduled task or yank the user back to that old chat).
+        intent.removeExtra(EXTRA_OPEN_CONVERSATION_ID)
 
         // Opened from a scheduled-autonomous-task notification (see
         // ScheduledActionReceiver) — run the task now that we're in the
         // foreground with a live window Accessibility Service can act on.
-        intent.getStringExtra(EXTRA_PENDING_AUTONOMOUS_GOAL)?.let { goal ->
+        val pendingGoal = intent.getStringExtra(EXTRA_PENDING_AUTONOMOUS_GOAL)
+        intent.removeExtra(EXTRA_PENDING_AUTONOMOUS_GOAL)
+        pendingGoal?.let { goal ->
             adapter.addMessage(ChatMessage("⏰ Running scheduled task: $goal", isUser = false))
             updateHomeVisibility()
             scrollToBottom()
             adapter.addMessage(ChatMessage("…", isUser = false))
             scrollToBottom()
-            startAutonomousTask(goal, messages.size - 1)
+            startAutonomousTask(goal, messages.size - 1, currentConversationId)
         }
     }
 
@@ -607,6 +632,10 @@ class MainActivity : AppCompatActivity() {
         adapter.addMessage(ChatMessage("…", isUser = false))
         scrollToBottom()
         val thinkingIndex = messages.size - 1
+        // Replies arrive asynchronously. If the user switches chats / starts a new one before
+        // a reply lands, thinkingIndex would point at the WRONG message (or past the end of the
+        // list and crash). Every async update below is therefore tied to this conversation id.
+        val convId = currentConversationId
 
         // Compound commands ("open X and do Y", "control my screen...") are
         // checked FIRST, before the simple device-command patterns — a plain
@@ -625,12 +654,9 @@ class MainActivity : AppCompatActivity() {
                     val confirmation = ScheduledActionHandler.scheduleAutonomousTask(
                         this, scheduledCommand.triggerAtMillis, text
                     )
-                    messages[thinkingIndex] = ChatMessage(confirmation, isUser = false)
-                    adapter.notifyItemChanged(thinkingIndex)
-                    scrollToBottom()
-                    persistCurrentConversation()
+                    replaceMessage(convId, thinkingIndex, confirmation)
                 } else {
-                    startAutonomousTask(text, thinkingIndex)
+                    startAutonomousTask(text, thinkingIndex, convId)
                 }
             }
             return
@@ -642,23 +668,17 @@ class MainActivity : AppCompatActivity() {
         ScheduledActionHandler.tryParseWithAiFallback(text) { scheduledCommand ->
             if (scheduledCommand != null) {
                 val confirmation = ScheduledActionHandler.schedule(this, scheduledCommand)
-                messages[thinkingIndex] = ChatMessage(confirmation, isUser = false)
-                adapter.notifyItemChanged(thinkingIndex)
-                scrollToBottom()
-                persistCurrentConversation()
+                replaceMessage(convId, thinkingIndex, confirmation)
                 return@tryParseWithAiFallback
             }
 
             DeviceCommandHandler.tryHandleWithAiFallback(this, text) { commandResult ->
                 if (commandResult != null && commandResult.handled) {
-                    messages[thinkingIndex] = ChatMessage(commandResult.responseText, isUser = false)
-                    adapter.notifyItemChanged(thinkingIndex)
-                    scrollToBottom()
-                    persistCurrentConversation()
+                    replaceMessage(convId, thinkingIndex, commandResult.responseText)
                     return@tryHandleWithAiFallback
                 }
 
-                sendToServer(text, attachmentNames, thinkingIndex)
+                sendToServer(text, attachmentNames, thinkingIndex, convId)
             }
         }
     }
@@ -687,7 +707,7 @@ class MainActivity : AppCompatActivity() {
         return false
     }
 
-    private fun startAutonomousTask(goal: String, thinkingIndex: Int) {
+    private fun startAutonomousTask(goal: String, thinkingIndex: Int, convId: String) {
         if (!HmlAccessibilityService.isRunning()) {
             val message = if (HmlAccessibilityService.isEnabledInSettings(this)) {
                 // Enabled but the service hasn't finished binding yet —
@@ -698,35 +718,33 @@ class MainActivity : AppCompatActivity() {
                 "🔒 Autonomous Control isn't turned on yet. Go to Settings > " +
                     "Accessibility > HML Agent and enable it, then ask me again."
             }
-            replaceMessage(thinkingIndex, message)
+            replaceMessage(convId, thinkingIndex, message)
             return
         }
 
-        messages[thinkingIndex] = ChatMessage("🤖 Taking control to work on this...", isUser = false)
-        adapter.notifyItemChanged(thinkingIndex)
-        scrollToBottom()
+        replaceMessage(convId, thinkingIndex, "🤖 Taking control to work on this...", persist = false)
         OverlayBubble.show(this, "Working on it...")
 
         val runner = AutonomousTaskRunner(
             context = this,
             onStatusUpdate = { status ->
-                messages[thinkingIndex] = ChatMessage(status, isUser = false)
-                adapter.notifyItemChanged(thinkingIndex)
-                scrollToBottom()
+                // Status ticks aren't worth a disk write each — only the final result is saved.
+                replaceMessage(convId, thinkingIndex, status, persist = false)
                 OverlayBubble.show(this, status)
             },
             onFinished = { finalMessage ->
-                messages[thinkingIndex] = ChatMessage(finalMessage, isUser = false)
-                adapter.notifyItemChanged(thinkingIndex)
-                scrollToBottom()
-                persistCurrentConversation()
+                replaceMessage(convId, thinkingIndex, finalMessage)
                 OverlayBubble.hide(this)
             }
         )
         runner.start(goal)
     }
 
-    private fun sendToServer(text: String, attachmentNames: List<String>, thinkingIndex: Int) {
+    private fun sendToServer(text: String, attachmentNames: List<String>, thinkingIndex: Int, convId: String) {
+        // The user moved to another chat while the command check was running — don't send
+        // this chat's history from the wrong conversation.
+        if (convId != currentConversationId || thinkingIndex !in messages.indices) return
+
         // The full conversation so far (excluding the "…" placeholder at
         // thinkingIndex) so the backend can give the model real context
         // instead of treating every message as a fresh, memory-less
@@ -769,7 +787,7 @@ class MainActivity : AppCompatActivity() {
         client.newCall(request).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
                 mainHandler.post {
-                    replaceMessage(thinkingIndex, "Couldn't reach HML Agent. Check your connection and try again.")
+                    replaceMessage(convId, thinkingIndex, "Couldn't reach HML Agent. Check your connection and try again.")
                 }
             }
 
@@ -780,28 +798,32 @@ class MainActivity : AppCompatActivity() {
                         try {
                             val answer = JSONObject(responseBody).optString("answer", "")
                             if (answer.isNotEmpty()) {
-                                replaceMessage(thinkingIndex, answer)
+                                replaceMessage(convId, thinkingIndex, answer)
                             } else {
-                                replaceMessage(thinkingIndex, "HML Agent couldn't answer that right now. Try again shortly.")
+                                replaceMessage(convId, thinkingIndex, "HML Agent couldn't answer that right now. Try again shortly.")
                             }
                         } catch (e: Exception) {
-                            replaceMessage(thinkingIndex, "Something went wrong reading the response.")
+                            replaceMessage(convId, thinkingIndex, "Something went wrong reading the response.")
                         }
                     } else {
-                        replaceMessage(thinkingIndex, "HML Agent is busy right now. Try again shortly.")
+                        replaceMessage(convId, thinkingIndex, "HML Agent is busy right now. Try again shortly.")
                     }
                 }
             }
         })
     }
 
-    private fun replaceMessage(index: Int, newText: String) {
-        if (index in messages.indices) {
-            messages[index] = ChatMessage(newText, isUser = false)
-            adapter.notifyItemChanged(index)
-            scrollToBottom()
-            persistCurrentConversation()
-        }
+    /** Swaps the text of one agent bubble — but only if the user is still in the same
+     * conversation and the bubble still exists. Without that check, a late reply after
+     * "New chat" / opening another conversation hit IndexOutOfBounds (crash) or overwrote
+     * an unrelated message. */
+    private fun replaceMessage(conversationId: String, index: Int, newText: String, persist: Boolean = true) {
+        if (isFinishing || isDestroyed) return
+        if (conversationId != currentConversationId || index !in messages.indices) return
+        messages[index] = ChatMessage(newText, isUser = false)
+        adapter.notifyItemChanged(index)
+        scrollToBottom()
+        if (persist) persistCurrentConversation()
     }
 
     private fun scrollToBottom() {

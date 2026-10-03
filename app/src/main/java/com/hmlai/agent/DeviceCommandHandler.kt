@@ -141,12 +141,18 @@ object DeviceCommandHandler {
         val messageText: String
     )
 
-    private fun classifyViaServer(text: String, callback: (CommandClassification?) -> Unit) {
-        val mainHandler = Handler(Looper.getMainLooper())
-        val client = OkHttpClient.Builder()
+    // One shared client — creating a fresh OkHttpClient for every message leaked a new
+    // connection pool + thread pool each time.
+    private val classifyClient: OkHttpClient by lazy {
+        OkHttpClient.Builder()
             .connectTimeout(10, TimeUnit.SECONDS)
             .readTimeout(10, TimeUnit.SECONDS)
             .build()
+    }
+
+    private fun classifyViaServer(text: String, callback: (CommandClassification?) -> Unit) {
+        val mainHandler = Handler(Looper.getMainLooper())
+        val client = classifyClient
 
         val json = JSONObject().put("message", text).toString()
         val body = json.toRequestBody("application/json; charset=utf-8".toMediaType())
@@ -324,25 +330,38 @@ object DeviceCommandHandler {
 
     private fun openApp(context: Context, appName: String): String {
         val packageManager = context.packageManager
-        val installedApps = packageManager.getInstalledApplications(PackageManager.GET_META_DATA)
+        val wanted = appName.trim().lowercase()
+        if (wanted.isEmpty()) return "Which app should I open?"
 
-        val match = installedApps.firstOrNull { appInfo ->
-            val label = packageManager.getApplicationLabel(appInfo).toString().lowercase()
-            label.contains(appName) || appName.contains(label)
-        }
+        // Only apps that actually have a launcher icon are candidates — the old code could
+        // pick a background/system package first and then fail with "couldn't open it".
+        val launchable = packageManager.getInstalledApplications(PackageManager.GET_META_DATA)
+            .filter { packageManager.getLaunchIntentForPackage(it.packageName) != null }
+            .map { it to packageManager.getApplicationLabel(it).toString() }
+
+        // Best match wins: exact name ("YouTube") beats a name that merely starts with
+        // it ("YouTube Music"), which beats one that just contains it. Previously the first
+        // loose match in install order won, so "open youtube" could open YouTube Music/Kids.
+        // The reverse check (label inside the spoken name) needs a few characters so a
+        // one/two-letter app label can't match almost any sentence.
+        val match = launchable.firstOrNull { (_, label) -> label.lowercase() == wanted }
+            ?: launchable.firstOrNull { (_, label) -> label.lowercase().startsWith(wanted) }
+            ?: launchable.firstOrNull { (_, label) -> label.lowercase().contains(wanted) }
+            ?: launchable.firstOrNull { (_, label) -> label.length >= 4 && wanted.contains(label.lowercase()) }
 
         if (match == null) {
             return "I couldn't find an app called \"$appName\" on this phone."
         }
 
-        val launchIntent = packageManager.getLaunchIntentForPackage(match.packageName)
-        return if (launchIntent != null) {
+        val (appInfo, label) = match
+        val launchIntent = packageManager.getLaunchIntentForPackage(appInfo.packageName)
+            ?: return "Found \"$appName\" but couldn't open it."
+        return try {
             launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             context.startActivity(launchIntent)
-            val label = packageManager.getApplicationLabel(match).toString()
             "📱 Opening $label..."
-        } else {
-            "Found \"$appName\" but couldn't open it."
+        } catch (e: Exception) {
+            "Found \"$label\" but couldn't open it: ${e.message}"
         }
     }
 
@@ -479,8 +498,22 @@ object DeviceCommandHandler {
             ?: return "I couldn't find a contact named \"$contactName\" to text."
 
         return try {
-            val smsManager = context.getSystemService(android.telephony.SmsManager::class.java)
-            smsManager.sendTextMessage(phoneNumber, null, message, null, null)
+            // Context.getSystemService(SmsManager) only exists on Android 12+ (API 31);
+            // on Android 8–11 it returns null, so the text silently failed there.
+            val smsManager: android.telephony.SmsManager =
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                    context.getSystemService(android.telephony.SmsManager::class.java)
+                } else {
+                    @Suppress("DEPRECATION")
+                    android.telephony.SmsManager.getDefault()
+                }
+            // divideMessage handles texts longer than a single 160-char SMS.
+            val parts = smsManager.divideMessage(message)
+            if (parts.size > 1) {
+                smsManager.sendMultipartTextMessage(phoneNumber, null, parts, null, null)
+            } else {
+                smsManager.sendTextMessage(phoneNumber, null, message, null, null)
+            }
             "💬 Texted $contactName: \"$message\""
         } catch (e: Exception) {
             "Couldn't send the text: ${e.message}"
