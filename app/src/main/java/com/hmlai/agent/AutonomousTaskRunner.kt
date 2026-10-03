@@ -37,6 +37,13 @@ class AutonomousTaskRunner(
     private val maxSteps = 12
     private var currentStep = 0
 
+    // The old loop ignored the true/false result of tapByText/typeIntoActiveField and
+    // always moved on as if the action worked. Now a failed action is retried once and
+    // reported back to the planner as a real observation, and three failures in a row
+    // stop the task instead of burning through every step blind.
+    private var consecutiveFailures = 0
+    private val maxConsecutiveFailures = 3
+
     fun start(goal: String) {
         if (!HmlAccessibilityService.isRunning()) {
             onFinished(
@@ -46,6 +53,7 @@ class AutonomousTaskRunner(
             return
         }
         currentStep = 0
+        consecutiveFailures = 0
         step(goal, emptyList())
     }
 
@@ -65,10 +73,60 @@ class AutonomousTaskRunner(
         val screenText = service.describeCurrentScreen()
         onStatusUpdate("👀 Reading the screen (step $currentStep)...")
 
+        // Capture a real screenshot alongside the text element list —
+        // text alone can't distinguish icon-only buttons, images, or
+        // visual layout (confirmed as a real gap by two independent
+        // reference projects, PokeClaw and Mobilerun, which both send
+        // screenshots + accessibility tree together rather than text
+        // alone). Gracefully proceeds text-only if capture fails or
+        // isn't supported on this Android version.
+        service.captureScreenshotBase64 { screenshotBase64 ->
+            sendStepRequest(goal, history, screenText, screenshotBase64, service)
+        }
+    }
+
+    /** Runs an action; if it fails, waits briefly and tries exactly once more. */
+    private fun attemptWithRetry(attempt: () -> Boolean, onOutcome: (Boolean, Boolean) -> Unit) {
+        if (attempt()) {
+            onOutcome(true, false)
+            return
+        }
+        mainHandler.postDelayed({ onOutcome(attempt(), true) }, 500)
+    }
+
+    /** Feeds the real outcome back into history, and stops after repeated failures. */
+    private fun recordOutcomeAndContinue(
+        goal: String,
+        history: List<String>,
+        observation: String,
+        succeeded: Boolean,
+        delayMs: Long
+    ) {
+        consecutiveFailures = if (succeeded) 0 else consecutiveFailures + 1
+        if (consecutiveFailures >= maxConsecutiveFailures) {
+            onFinished(
+                "I tried a few times but couldn't find the right element on screen to continue " +
+                    "this task safely, so I stopped rather than keep guessing."
+            )
+            return
+        }
+        mainHandler.postDelayed({ step(goal, history + observation) }, delayMs)
+    }
+
+    private fun sendStepRequest(
+        goal: String,
+        history: List<String>,
+        screenText: String,
+        screenshotBase64: String?,
+        service: HmlAccessibilityService
+    ) {
         val json = JSONObject().apply {
             put("goal", goal)
             put("screen", screenText)
             put("history", history.joinToString("\n"))
+            if (screenshotBase64 != null) {
+                put("screenshot", screenshotBase64)
+            }
         }.toString()
 
         val body = json.toRequestBody("application/json; charset=utf-8".toMediaType())
@@ -97,17 +155,31 @@ class AutonomousTaskRunner(
                         when (action) {
                             "tap" -> {
                                 onStatusUpdate("👆 Tapping \"$target\"...")
-                                service.tapByText(target)
-                                mainHandler.postDelayed({
-                                    step(goal, history + "Tapped \"$target\": $reasoning")
-                                }, 900)
+                                attemptWithRetry(
+                                    attempt = { service.tapByText(target) },
+                                    onOutcome = { succeeded, usedRetry ->
+                                        val observation = if (succeeded) {
+                                            "Tapped \"$target\"${if (usedRetry) " (succeeded on retry)" else ""}: $reasoning"
+                                        } else {
+                                            "FAILED to tap \"$target\" (element not found on screen, even after retry) — try a different target or approach"
+                                        }
+                                        recordOutcomeAndContinue(goal, history, observation, succeeded, 900)
+                                    }
+                                )
                             }
                             "type" -> {
                                 onStatusUpdate("⌨️ Typing \"$target\"...")
-                                service.typeIntoActiveField(target)
-                                mainHandler.postDelayed({
-                                    step(goal, history + "Typed \"$target\": $reasoning")
-                                }, 600)
+                                attemptWithRetry(
+                                    attempt = { service.typeIntoActiveField(target) },
+                                    onOutcome = { succeeded, usedRetry ->
+                                        val observation = if (succeeded) {
+                                            "Typed \"$target\"${if (usedRetry) " (succeeded on retry)" else ""}: $reasoning"
+                                        } else {
+                                            "FAILED to type \"$target\" (no editable field currently focused, even after retry) — try tapping the field first"
+                                        }
+                                        recordOutcomeAndContinue(goal, history, observation, succeeded, 600)
+                                    }
+                                )
                             }
                             "scroll_down" -> {
                                 onStatusUpdate("⬇️ Scrolling down...")

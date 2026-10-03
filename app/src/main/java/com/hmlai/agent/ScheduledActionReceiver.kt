@@ -22,6 +22,70 @@ class ScheduledActionReceiver : BroadcastReceiver() {
         when (actionType) {
             "reminder" -> showReminderNotification(context, payload)
             "call" -> placeScheduledCall(context, payload)
+            "autonomous" -> launchScheduledAutonomousTask(context, payload)
+        }
+    }
+
+    /** Scheduled autonomous tasks ("at 12:00 AM, open Messenger and say
+     * Happy Birthday to Wazi") can't run silently in the background —
+     * Accessibility Service gestures need a live, unlocked, foreground
+     * window to actually target, which a BroadcastReceiver with the
+     * screen off can't provide. Instead, this fires a high-priority
+     * notification that opens the app straight into running the task —
+     * MainActivity picks up the pending goal from the intent extra and
+     * starts AutonomousTaskRunner automatically once it's in the
+     * foreground. Not fully silent, but it's the reliable version of
+     * this given Android's real constraints on background gesture
+     * automation. */
+    private fun launchScheduledAutonomousTask(context: Context, goal: String) {
+        val channelId = "hml_agent_autonomous"
+        val notificationManager =
+            context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                channelId,
+                "Scheduled tasks",
+                NotificationManager.IMPORTANCE_HIGH
+            )
+            notificationManager.createNotificationChannel(channel)
+        }
+
+        val launchIntent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra(MainActivity.EXTRA_PENDING_AUTONOMOUS_GOAL, goal)
+        }
+        val pendingIntent = android.app.PendingIntent.getActivity(
+            context, goal.hashCode(), launchIntent,
+            android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val notification = NotificationCompat.Builder(context, channelId)
+            .setContentTitle("HML Agent — scheduled task")
+            .setContentText("Tap to run: $goal")
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+            .setContentIntent(pendingIntent)
+            .setFullScreenIntent(pendingIntent, true)
+            .build()
+
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
+            == PackageManager.PERMISSION_GRANTED || Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU
+        ) {
+            notificationManager.notify(goal.hashCode(), notification)
+        }
+
+        // Also try to open it immediately if HML Agent is already the
+        // foreground/recently-used app — otherwise the notification above
+        // is the reliable path (Android restricts apps from just popping
+        // themselves open from the background on modern versions).
+        try {
+            context.startActivity(launchIntent)
+        } catch (e: Exception) {
+            // Expected to fail/be ignored on many devices when not already
+            // foreground — the notification's fullScreenIntent is the
+            // dependable fallback.
         }
     }
 
@@ -62,29 +126,8 @@ class ScheduledActionReceiver : BroadcastReceiver() {
             showReminderNotification(context, "Tried to call $contactName but Call permission isn't granted.")
             return
         }
-        if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CONTACTS)
-            != PackageManager.PERMISSION_GRANTED
-        ) {
-            showReminderNotification(context, "Tried to call $contactName but Contacts permission isn't granted.")
-            return
-        }
 
-        val resolver = context.contentResolver
-        var phoneNumber: String? = null
-        val cursor = resolver.query(
-            android.provider.ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
-            arrayOf(android.provider.ContactsContract.CommonDataKinds.Phone.NUMBER),
-            "${android.provider.ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME} LIKE ?",
-            arrayOf("%$contactName%"),
-            null
-        )
-        cursor?.use {
-            if (it.moveToFirst()) {
-                val index = it.getColumnIndex(android.provider.ContactsContract.CommonDataKinds.Phone.NUMBER)
-                phoneNumber = it.getString(index)
-            }
-        }
-
+        val phoneNumber = ContactResolver.findPhoneNumberForContact(context, contactName)
         if (phoneNumber == null) {
             showReminderNotification(context, "Tried to call $contactName but couldn't find that contact.")
             return

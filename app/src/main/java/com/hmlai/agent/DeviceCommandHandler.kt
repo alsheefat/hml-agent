@@ -4,7 +4,6 @@ import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.database.Cursor
 import android.hardware.camera2.CameraManager
 import android.net.Uri
 import android.os.Handler
@@ -121,6 +120,7 @@ object DeviceCommandHandler {
             val result = when (classification.type) {
                 "call" -> CommandResult(true, placeCall(context, classification.target))
                 "sms" -> CommandResult(true, openSms(context, classification.target, classification.messageText))
+                "whatsapp" -> CommandResult(true, openWhatsAppChat(context, classification.target, classification.messageText))
                 "flashlight_on" -> CommandResult(true, setFlashlight(context, true))
                 "flashlight_off" -> CommandResult(true, setFlashlight(context, false))
                 "open_app" -> CommandResult(true, openApp(context, classification.target))
@@ -255,56 +255,38 @@ object DeviceCommandHandler {
     }
 
     private fun placeCall(context: Context, contactName: String): String {
-        if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CONTACTS)
-            != PackageManager.PERMISSION_GRANTED
-        ) {
-            return "I need Contacts permission to find \"$contactName\". Please grant it in app settings."
-        }
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.CALL_PHONE)
             != PackageManager.PERMISSION_GRANTED
         ) {
             return "I need Phone Call permission to call \"$contactName\". Please grant it in app settings."
         }
 
-        val phoneNumber = findPhoneNumberForContact(context, contactName)
-            ?: return "I couldn't find a contact named \"$contactName\" on this phone."
+        return when (val resolution = ContactResolver.resolve(context, contactName)) {
+            is ContactResolution.PermissionDenied ->
+                "I need Contacts permission to find \"$contactName\". Please grant it in app settings."
 
-        return try {
-            val telecomManager = context.getSystemService(Context.TELECOM_SERVICE) as TelecomManager
-            val uri = Uri.fromParts("tel", phoneNumber, null)
-            @Suppress("MissingPermission")
-            telecomManager.placeCall(uri, null)
-            "📞 Calling $contactName ($phoneNumber)..."
-        } catch (e: Exception) {
-            "Couldn't place the call: ${e.message}"
-        }
-    }
+            is ContactResolution.NotFound ->
+                "I couldn't find a contact named \"$contactName\" on this phone."
 
-    private fun findPhoneNumberForContact(context: Context, name: String): String? {
-        val resolver = context.contentResolver
-        var cursor: Cursor? = null
-        try {
-            cursor = resolver.query(
-                ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
-                arrayOf(
-                    ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME,
-                    ContactsContract.CommonDataKinds.Phone.NUMBER
-                ),
-                "${ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME} LIKE ?",
-                arrayOf("%$name%"),
-                null
-            )
-
-            if (cursor != null && cursor.moveToFirst()) {
-                val numberIndex = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER)
-                return cursor.getString(numberIndex)
+            is ContactResolution.Ambiguous -> {
+                val names = resolution.matches.joinToString(", ") { it.name }
+                "I found more than one contact matching \"$contactName\": $names. " +
+                    "Try the exact saved name instead so I know which one you mean."
             }
-        } catch (e: Exception) {
-            // fall through to return null
-        } finally {
-            cursor?.close()
+
+            is ContactResolution.Found -> {
+                val contact = resolution.contact
+                try {
+                    val telecomManager = context.getSystemService(Context.TELECOM_SERVICE) as TelecomManager
+                    val uri = Uri.fromParts("tel", contact.phoneNumber, null)
+                    @Suppress("MissingPermission")
+                    telecomManager.placeCall(uri, null)
+                    "📞 Calling ${contact.name} (${contact.phoneNumber})..."
+                } catch (e: Exception) {
+                    "Couldn't place the call: ${e.message}"
+                }
+            }
         }
-        return null
     }
 
     // ============================================================
@@ -313,8 +295,13 @@ object DeviceCommandHandler {
 
     private fun extractOpenAppTarget(text: String): String? {
         val patterns = listOf(
-            Regex("^open\\s+(.+)$"),
-            Regex("^launch\\s+(.+)$"),
+            // Stop at "and"/"then" so "open Instagram and send messages to
+            // Zawad" extracts just "Instagram", not the entire sentence —
+            // this was silently making every compound "open X and do Y"
+            // command fail, since the too-long "app name" never matched
+            // any installed app's label.
+            Regex("^open\\s+(.+?)(?:\\s+and\\s+.+)?$"),
+            Regex("^launch\\s+(.+?)(?:\\s+and\\s+.+)?$"),
             Regex("^start\\s+(.+)\\s+app$"),
             Regex("^(.+)\\s+kholo$"),
             Regex("^(.+)\\s+chalu koro$")
@@ -380,12 +367,27 @@ object DeviceCommandHandler {
     private fun openYoutubeSearch(context: Context, query: String): String {
         return try {
             val encoded = Uri.encode(query)
-            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("vnd.youtube:search?query=$encoded"))
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            try {
-                context.startActivity(intent)
-            } catch (e: Exception) {
-                // YouTube app not installed — fall back to browser.
+            val packageManager = context.packageManager
+
+            // vnd.youtube:search?query=... is not a real registered YouTube
+            // deep link (unlike vnd.youtube://VIDEO_ID for a specific video),
+            // so it was silently failing to resolve and always falling
+            // through to the browser. The reliable way to force the YouTube
+            // APP (not a browser) to handle a search is to use the normal
+            // youtube.com search URL but explicitly target the app's package
+            // — Android then hands it straight to the app via its own App
+            // Links registration instead of showing a browser/chooser.
+            val youtubeAppIntent = Intent(
+                Intent.ACTION_VIEW,
+                Uri.parse("https://www.youtube.com/results?search_query=$encoded")
+            )
+            youtubeAppIntent.setPackage("com.google.android.youtube")
+            youtubeAppIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+
+            if (youtubeAppIntent.resolveActivity(packageManager) != null) {
+                context.startActivity(youtubeAppIntent)
+            } else {
+                // YouTube app genuinely not installed — fall back to browser.
                 val webIntent = Intent(
                     Intent.ACTION_VIEW,
                     Uri.parse("https://www.youtube.com/results?search_query=$encoded")
@@ -473,7 +475,7 @@ object DeviceCommandHandler {
             return "I need SMS permission to text \"$contactName\". Please grant it in app settings."
         }
 
-        val phoneNumber = findPhoneNumberForContact(context, contactName)
+        val phoneNumber = ContactResolver.findPhoneNumberForContact(context, contactName)
             ?: return "I couldn't find a contact named \"$contactName\" to text."
 
         return try {
@@ -482,6 +484,60 @@ object DeviceCommandHandler {
             "💬 Texted $contactName: \"$message\""
         } catch (e: Exception) {
             "Couldn't send the text: ${e.message}"
+        }
+    }
+
+    // ============================================================
+    // WHATSAPP
+    // ============================================================
+
+    /** Opens a WhatsApp chat with the contact, pre-filled with the message.
+     * NOTE: unlike SMS, WhatsApp does not expose an API to send fully
+     * automatically — the user has to tap WhatsApp's own send button once
+     * the chat opens. This is a real WhatsApp/Android limitation, not
+     * something this app can bypass. */
+    private fun openWhatsAppChat(context: Context, contactName: String, message: String): String {
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CONTACTS)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            return "I need Contacts permission to find \"$contactName\". Please grant it in app settings."
+        }
+
+        val phoneNumber = ContactResolver.findPhoneNumberForContact(context, contactName)
+            ?: return "I couldn't find a contact named \"$contactName\" to message on WhatsApp."
+
+        // WhatsApp's official API needs the number as country-code + digits,
+        // no "+", spaces, or other punctuation.
+        val cleanedNumber = phoneNumber.filter { it.isDigit() }
+
+        return try {
+            val encodedMessage = Uri.encode(message)
+            val packageManager = context.packageManager
+
+            val intent = Intent(
+                Intent.ACTION_VIEW,
+                Uri.parse("https://api.whatsapp.com/send?phone=$cleanedNumber&text=$encodedMessage")
+            )
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+
+            // Prefer regular WhatsApp, fall back to WhatsApp Business if
+            // that's what's installed instead.
+            val whatsappIntent = Intent(intent).setPackage("com.whatsapp")
+            val businessIntent = Intent(intent).setPackage("com.whatsapp.w4b")
+
+            when {
+                whatsappIntent.resolveActivity(packageManager) != null -> {
+                    context.startActivity(whatsappIntent)
+                    "💬 Opening WhatsApp chat with $contactName, message ready — tap send in WhatsApp to deliver it."
+                }
+                businessIntent.resolveActivity(packageManager) != null -> {
+                    context.startActivity(businessIntent)
+                    "💬 Opening WhatsApp Business chat with $contactName, message ready — tap send to deliver it."
+                }
+                else -> "WhatsApp doesn't seem to be installed on this phone."
+            }
+        } catch (e: Exception) {
+            "Couldn't open WhatsApp: ${e.message}"
         }
     }
 

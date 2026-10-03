@@ -4,12 +4,10 @@
 
     <!-- Core palette -->
     <color name="bg_black">#000000</color>
-    <color name="surface">#0A0A0A</color>
     <color name="surface_raised">#0D0D12</color>
 
     <!-- Deep blue (from user's spec) - used for accents, borders, bubbles -->
     <color name="blue_deep">#1135b8</color>
-    <color name="blue_deeper">#09238f</color>
 
     <!-- Bright glow blue - used for highlights, buttons, the accent that actually needs to pop.
          Nudged a shade lighter/more vivid than the first pass so buttons and active states
@@ -17,9 +15,8 @@
     <color name="blue_bright">#3D74FF</color>
     <color name="blue_glow">#5E89FF</color>
 
-    <!-- Soft translucent version of blue_glow — the faint fill behind the mic/send/temporary-chat
-         "ring" buttons, giving them a bit of glow without ever being a solid filled disc. -->
-    <color name="glow_halo">#332861FF</color>
+    <!-- Halo behind the small "online" status dot next to the app title. -->
+    <color name="status_dot_halo">#333D74FF</color>
 
     <!-- Text - white/near-white for actual readability on black -->
     <color name="text_primary">#F5F6FA</color>
@@ -35,6 +32,10 @@
     <color name="line">#471135B8</color>
     <color name="hover_tint">#1F1135B8</color>
 
+    <!-- Background behind selected text when copying a message (same blue_deep family,
+         just translucent enough that the text underneath stays readable). -->
+    <color name="text_highlight">#4D1135B8</color>
+
     <!-- Message bubbles.
          Agent bubble: near-black fill + a solid deep-blue hairline (unchanged, already matched the theme).
          User bubble: was previously a solid, fully-opaque bright blue block with white text — it read as a
@@ -49,7 +50,8 @@
     <!-- Drawer / history -->
     <color name="drawer_bg">#000000</color>
 
-    <!-- Attachment chips + login buttons share the same subdued bordered-pill treatment -->
+    <!-- Attachment chip background (small solid fill — chips aren't part of the
+         outline-only button system since they're informational, not tappable actions) -->
     <color name="chip_bg">#0D0D12</color>
 
     <!-- For destructive actions (delete conversation). Used directly and also wired as

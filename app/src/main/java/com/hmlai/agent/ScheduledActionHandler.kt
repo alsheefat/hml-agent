@@ -218,4 +218,49 @@ object ScheduledActionHandler {
             else -> "⏰ Scheduled for $timeLabel."
         }
     }
+
+    /** Schedules a full autonomous on-screen task ("open Messenger and say
+     * Happy Birthday to Wazi") to run at a specific time. Because
+     * Accessibility Service gestures need a live foreground window,
+     * this can't run fully silently in the background — at the
+     * scheduled time, ScheduledActionReceiver shows a notification that
+     * launches the app straight into the task. See that class for the
+     * full explanation of why. */
+    fun scheduleAutonomousTask(context: Context, triggerAtMillis: Long, goal: String): String {
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+
+        val intent = Intent(context, ScheduledActionReceiver::class.java).apply {
+            putExtra("actionType", "autonomous")
+            putExtra("payload", goal)
+        }
+
+        val requestCode = triggerAtMillis.toInt()
+        val pendingIntent = PendingIntent.getBroadcast(
+            context,
+            requestCode,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !alarmManager.canScheduleExactAlarms()) {
+                return "I need \"Schedule exact alarms\" permission for this. Please grant it in app settings."
+            }
+            alarmManager.setExactAndAllowWhileIdle(
+                AlarmManager.RTC_WAKEUP,
+                triggerAtMillis,
+                pendingIntent
+            )
+        } catch (e: SecurityException) {
+            return "I don't have permission to schedule exact alarms. Please grant it in app settings."
+        }
+
+        val calendar = Calendar.getInstance().apply { timeInMillis = triggerAtMillis }
+        val hour = calendar.get(Calendar.HOUR_OF_DAY)
+        val minute = calendar.get(Calendar.MINUTE)
+        val timeLabel = String.format("%02d:%02d", hour, minute)
+
+        return "⏰ Scheduled for $timeLabel — I'll open a notification at that time to run: \"$goal\". " +
+            "Make sure Autonomous Control is enabled in Accessibility settings before then."
+    }
 }

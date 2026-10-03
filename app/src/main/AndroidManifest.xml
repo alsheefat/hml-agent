@@ -10,6 +10,7 @@
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
     <!-- Lets the "type with voice" mic button see and launch the system speech-recognition app
          (required for intent.resolveActivity()/launch() to work on Android 11+). -->
@@ -17,11 +18,21 @@
         <intent>
             <action android:name="android.speech.action.RECOGNIZE_SPEECH" />
         </intent>
+        <!-- Android 11+ hides most other apps' existence by default (package
+             visibility) unless explicitly declared here — without this,
+             "open Instagram"/"open Spotify"/etc silently can't find ANY
+             third-party app via getInstalledApplications(), regardless of
+             how correctly the app name was extracted from the command. -->
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
     </queries>
 
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:label="@string/app_name"
         android:theme="@style/Theme.HMLAgent"
         android:supportsRtl="true">

@@ -21,11 +21,28 @@
         <item name="android:navigationBarColor">@color/bg_black</item>
         <item name="android:textColor">@color/text_primary</item>
         <item name="android:textColorHint">@color/text_muted</item>
+        <item name="android:textColorHighlight">@color/text_highlight</item>
         <item name="materialAlertDialogTheme">@style/ThemeOverlay.HMLAgent.AlertDialog</item>
+        <!-- Themes the floating "Copy / Select all" toolbar that appears when selecting
+             message text — otherwise it's Android's own default (light, unthemed) popup. -->
+        <item name="android:actionModeBackground">@drawable/dialog_bg</item>
+        <item name="android:actionModeStyle">@style/HMLAgent.ActionMode</item>
     </style>
 
-    <!-- Every AlertDialog.Builder(this) in the app (rename, delete confirm, log-out
-         confirm) picks this up automatically — one fix covers all three. -->
+    <style name="HMLAgent.ActionMode" parent="Widget.AppCompat.ActionMode">
+        <item name="background">@drawable/dialog_bg</item>
+        <item name="titleTextStyle">@style/HMLAgent.ActionMode.Text</item>
+    </style>
+
+    <style name="HMLAgent.ActionMode.Text" parent="TextAppearance.AppCompat.Widget.ActionMode.Title">
+        <item name="android:textColor">@color/text_primary</item>
+    </style>
+
+    <!-- Every MaterialAlertDialogBuilder(this) in the app (rename, delete confirm, the
+         autonomous-control status dialog, its nested log-out confirm, and edit-profile)
+         picks this up automatically — one fix covers all five. Must be
+         MaterialAlertDialogBuilder specifically: plain AlertDialog.Builder never reads
+         this attribute at all, which is why an earlier attempt at this silently did nothing. -->
     <style name="ThemeOverlay.HMLAgent.AlertDialog" parent="ThemeOverlay.MaterialComponents.MaterialAlertDialog">
         <item name="colorSurface">@color/surface_raised</item>
         <item name="colorOnSurface">@color/text_primary</item>
@@ -54,5 +71,53 @@
 
     <style name="HMLAgent.AlertDialog.Button" parent="Widget.MaterialComponents.Button.TextButton.Dialog">
         <item name="android:textColor">@color/blue_bright</item>
+    </style>
+
+    <!-- Quick-command chip on the home screen -->
+    <style name="CommandChip">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:orientation">vertical</item>
+        <item name="android:background">@drawable/chip_command_bg</item>
+        <item name="android:padding">13dp</item>
+        <item name="android:clickable">true</item>
+        <item name="android:focusable">true</item>
+    </style>
+
+    <style name="CommandChip.Title">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textColor">@color/text_primary</item>
+        <item name="android:textSize">12sp</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+
+    <style name="CommandChip.Subtitle">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginTop">3dp</item>
+        <item name="android:textColor">@color/text_secondary</item>
+        <item name="android:textSize">10sp</item>
+    </style>
+
+    <!-- Labeled tool button under the composer (attach / voice) -->
+    <style name="ToolPill">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">36dp</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:orientation">horizontal</item>
+        <item name="android:gravity">center</item>
+        <item name="android:background">@drawable/tool_pill_bg</item>
+        <item name="android:clickable">true</item>
+        <item name="android:focusable">true</item>
+    </style>
+
+    <style name="ToolPill.Label">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginStart">6dp</item>
+        <item name="android:textColor">@color/text_secondary</item>
+        <item name="android:textSize">11sp</item>
     </style>
 </resources>

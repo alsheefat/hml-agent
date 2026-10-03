@@ -17,6 +17,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.EditText
 import android.widget.HorizontalScrollView
+import android.widget.ImageView
 import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.PopupWindow
@@ -69,6 +70,7 @@ class MainActivity : AppCompatActivity() {
     private var isTemporaryChat = false
     private lateinit var temporaryChatButton: ImageButton
     private lateinit var temporaryBanner: TextView
+    private lateinit var homeContentView: View
 
     // Files picked via the "+" button, waiting to be sent with the next message.
     private val pendingAttachments = mutableListOf<Uri>()
@@ -122,12 +124,15 @@ class MainActivity : AppCompatActivity() {
         val accountRow = findViewById<View>(R.id.accountRow)
         temporaryChatButton = findViewById(R.id.temporaryChatButton)
         temporaryBanner = findViewById(R.id.temporaryBanner)
+        homeContentView = findViewById(R.id.homeContentView)
 
         attachmentsScroll = findViewById(R.id.attachmentsScroll)
         attachmentsPreview = findViewById(R.id.attachmentsPreview)
 
         setupDrawer(menuButton, drawerNewChat)
         setupAccountRow(accountRow)
+        setupCommandChips()
+        updateHomeVisibility()
         requestDevicePermissionsIfNeeded()
         requestExactAlarmPermissionIfNeeded()
 
@@ -213,6 +218,18 @@ class MainActivity : AppCompatActivity() {
         // (see addHomeScreenShortcut / LoginActivity's forwarding of this extra).
         intent.getStringExtra(EXTRA_OPEN_CONVERSATION_ID)?.let { id ->
             ConversationStore.get(this, id)?.let { loadConversation(it) }
+        }
+
+        // Opened from a scheduled-autonomous-task notification (see
+        // ScheduledActionReceiver) — run the task now that we're in the
+        // foreground with a live window Accessibility Service can act on.
+        intent.getStringExtra(EXTRA_PENDING_AUTONOMOUS_GOAL)?.let { goal ->
+            adapter.addMessage(ChatMessage("⏰ Running scheduled task: $goal", isUser = false))
+            updateHomeVisibility()
+            scrollToBottom()
+            adapter.addMessage(ChatMessage("…", isUser = false))
+            scrollToBottom()
+            startAutonomousTask(goal, messages.size - 1)
         }
     }
 
@@ -345,11 +362,52 @@ class MainActivity : AppCompatActivity() {
         ShortcutManagerCompat.requestPinShortcut(this, shortcut, null)
     }
 
+    /** Quick-command chips on the empty home screen: tapping one drops a ready-made
+     * example command into the message box so the user can edit it and send. */
+    private fun setupCommandChips() {
+        val chips = mapOf(
+            R.id.chipFlashlight to R.string.chip_flashlight_command,
+            R.id.chipApps to R.string.chip_apps_command,
+            R.id.chipMusic to R.string.chip_music_command,
+            R.id.chipYoutube to R.string.chip_youtube_command,
+            R.id.chipReminder to R.string.chip_reminder_command,
+            R.id.chipPhone to R.string.chip_phone_command
+        )
+        val messageBox = findViewById<EditText>(R.id.messageInput)
+        for ((viewId, stringId) in chips) {
+            findViewById<View>(viewId).setOnClickListener {
+                val command = getString(stringId)
+                messageBox.setText(command)
+                messageBox.setSelection(command.length)
+                messageBox.requestFocus()
+            }
+        }
+    }
+
+    /** Shows the home screen (headline + chips) while the chat is empty, and the
+     * message list once there is at least one message. */
+    private fun updateHomeVisibility() {
+        val empty = messages.isEmpty()
+        homeContentView.visibility = if (empty) View.VISIBLE else View.GONE
+        messageList.visibility = if (empty) View.GONE else View.VISIBLE
+    }
+
     private fun setupAccountRow(accountRow: View) {
-        findViewById<TextView>(R.id.accountName).text = SessionManager.getName(this)
+        val name = SessionManager.getName(this)
+        findViewById<TextView>(R.id.accountName).text = name
         findViewById<TextView>(R.id.accountSubtitle).text = SessionManager.getSubtitle(this)
-        findViewById<TextView>(R.id.accountInitial).text =
-            SessionManager.getName(this).trim().take(1).uppercase(Locale.getDefault()).ifBlank { "A" }
+
+        val initialView = findViewById<TextView>(R.id.accountInitial)
+        val guestIconView = findViewById<ImageView>(R.id.accountGuestIcon)
+        if (name == "Guest") {
+            // A bare "G" read as an undesigned placeholder; an icon reads as intentional.
+            initialView.visibility = View.GONE
+            guestIconView.visibility = View.VISIBLE
+        } else {
+            initialView.visibility = View.VISIBLE
+            guestIconView.visibility = View.GONE
+            initialView.text = name.trim().take(1).uppercase(Locale.getDefault()).ifBlank { "A" }
+        }
 
         accountRow.setOnClickListener {
             val statusText = if (HmlAccessibilityService.isRunning()) {
@@ -427,6 +485,7 @@ class MainActivity : AppCompatActivity() {
         currentConversationId = UUID.randomUUID().toString()
         isTemporaryChat = false
         adapter.clear()
+        updateHomeVisibility()
         clearAttachments()
         updateTemporaryUi()
         refreshHistory()
@@ -437,6 +496,7 @@ class MainActivity : AppCompatActivity() {
         currentConversationId = UUID.randomUUID().toString()
         isTemporaryChat = true
         adapter.clear()
+        updateHomeVisibility()
         clearAttachments()
         updateTemporaryUi()
         historyAdapter.setActive(null)
@@ -458,6 +518,7 @@ class MainActivity : AppCompatActivity() {
         currentConversationId = conversation.id
         isTemporaryChat = false
         adapter.setMessages(conversation.messages)
+        updateHomeVisibility()
         clearAttachments()
         updateTemporaryUi()
         scrollToBottom()
@@ -532,17 +593,57 @@ class MainActivity : AppCompatActivity() {
         UserProfileStore.maybeLearnNameFrom(this, text)
         val attachmentNames = pendingAttachments.map { queryFileName(it) }
         adapter.addMessage(ChatMessage(text, isUser = true, attachments = attachmentNames))
+        updateHomeVisibility()
         clearAttachments()
         scrollToBottom()
         persistCurrentConversation()
 
+        // Show the "thinking" bubble immediately — classification (scheduling,
+        // then device-command) each need a network round-trip, and previously
+        // nothing appeared on screen until BOTH had finished, which is why
+        // replies felt like they took 3-4 seconds to even start. Now the user
+        // sees feedback right away, and whichever path actually handles the
+        // message updates this same bubble instead of adding a new one.
+        adapter.addMessage(ChatMessage("…", isUser = false))
+        scrollToBottom()
+        val thinkingIndex = messages.size - 1
+
+        // Compound commands ("open X and do Y", "control my screen...") are
+        // checked FIRST, before the simple device-command patterns — a plain
+        // Intent can only ever do ONE simple thing (open an app), so if the
+        // message chains on a second action, DeviceCommandHandler's local
+        // "open app" pattern would otherwise match first, silently open the
+        // app, and drop everything after "and". Compound commands need the
+        // full autonomous screen-control loop instead.
+        if (isAutonomousControlRequest(text)) {
+            // A compound command can ALSO be scheduled ("at exactly 12:00 AM,
+            // open Messenger and say Happy Birthday to Wazi") — check for a
+            // time first; if there's one, schedule the autonomous task for
+            // later instead of running it immediately.
+            ScheduledActionHandler.tryParseWithAiFallback(text) { scheduledCommand ->
+                if (scheduledCommand != null) {
+                    val confirmation = ScheduledActionHandler.scheduleAutonomousTask(
+                        this, scheduledCommand.triggerAtMillis, text
+                    )
+                    messages[thinkingIndex] = ChatMessage(confirmation, isUser = false)
+                    adapter.notifyItemChanged(thinkingIndex)
+                    scrollToBottom()
+                    persistCurrentConversation()
+                } else {
+                    startAutonomousTask(text, thinkingIndex)
+                }
+            }
+            return
+        }
+
         // Scheduled/delayed commands ("remind me to X at 5pm", "call mom
-        // at 6:30") are checked first, since they use their own time-
+        // at 6:30") are checked next, since they use their own time-
         // parsing syntax that shouldn't fall through to plain commands.
         ScheduledActionHandler.tryParseWithAiFallback(text) { scheduledCommand ->
             if (scheduledCommand != null) {
                 val confirmation = ScheduledActionHandler.schedule(this, scheduledCommand)
-                adapter.addMessage(ChatMessage(confirmation, isUser = false))
+                messages[thinkingIndex] = ChatMessage(confirmation, isUser = false)
+                adapter.notifyItemChanged(thinkingIndex)
                 scrollToBottom()
                 persistCurrentConversation()
                 return@tryParseWithAiFallback
@@ -550,89 +651,90 @@ class MainActivity : AppCompatActivity() {
 
             DeviceCommandHandler.tryHandleWithAiFallback(this, text) { commandResult ->
                 if (commandResult != null && commandResult.handled) {
-                    adapter.addMessage(ChatMessage(commandResult.responseText, isUser = false))
+                    messages[thinkingIndex] = ChatMessage(commandResult.responseText, isUser = false)
+                    adapter.notifyItemChanged(thinkingIndex)
                     scrollToBottom()
                     persistCurrentConversation()
                     return@tryHandleWithAiFallback
                 }
 
-                // Full autonomous on-screen control ("in Instagram, like the top post",
-                // "scroll through my feed and open the first video", "control my screen
-                // and buy X on Amazon") — the "ultimate power" tier. Only triggers on
-                // an explicit autonomy phrase, never silently, since this is the most
-                // powerful and most consequential capability the app has.
-                if (isAutonomousControlRequest(text)) {
-                    startAutonomousTask(text)
-                    return@tryHandleWithAiFallback
-                }
-
-                sendToServer(text, attachmentNames)
+                sendToServer(text, attachmentNames, thinkingIndex)
             }
         }
     }
 
     private fun isAutonomousControlRequest(text: String): Boolean {
         val t = text.lowercase()
-        val triggers = listOf(
+
+        // Explicit autonomy phrases.
+        val explicitTriggers = listOf(
             "control my screen", "control the screen", "take control",
-            "do this for me on", "automate", "autonomously",
-            "open .* and (tap|click|scroll|type|like|comment|post|buy|search)".toRegex()
+            "do this for me on", "automate", "autonomously"
         )
-        return triggers.any { trigger ->
-            when (trigger) {
-                is String -> t.contains(trigger)
-                is Regex -> trigger.containsMatchIn(t)
-                else -> false
-            }
-        }
+        if (explicitTriggers.any { t.contains(it) }) return true
+
+        // Any "open X and <anything else>" is a COMPOUND command — a plain
+        // Intent can only ever do one simple thing (just open an app), so
+        // if there's a second action chained on with "and"/"then", it
+        // needs the full autonomous screen-control loop to actually carry
+        // out that second part, regardless of which specific verb is used
+        // ("say", "play", "tap", "send" — anything). Previously this only
+        // matched a fixed short list of verbs, so most real compound
+        // requests silently fell through as if they were simple app-opens.
+        val compoundPattern = Regex("^(open|launch)\\s+.+?\\s+(and|then)\\s+.+")
+        if (compoundPattern.containsMatchIn(t)) return true
+
+        return false
     }
 
-    private fun startAutonomousTask(goal: String) {
+    private fun startAutonomousTask(goal: String, thinkingIndex: Int) {
         if (!HmlAccessibilityService.isRunning()) {
-            adapter.addMessage(
-                ChatMessage(
-                    "🔒 Autonomous Control isn't turned on yet. Go to Settings > " +
-                        "Accessibility > HML Agent and enable it, then ask me again.",
-                    isUser = false
-                )
-            )
-            scrollToBottom()
+            val message = if (HmlAccessibilityService.isEnabledInSettings(this)) {
+                // Enabled but the service hasn't finished binding yet —
+                // different, more accurate message than "not turned on".
+                "⏳ Autonomous Control is enabled but still starting up. Give it a " +
+                    "few seconds and try again."
+            } else {
+                "🔒 Autonomous Control isn't turned on yet. Go to Settings > " +
+                    "Accessibility > HML Agent and enable it, then ask me again."
+            }
+            replaceMessage(thinkingIndex, message)
             return
         }
 
-        adapter.addMessage(ChatMessage("🤖 Taking control to work on this...", isUser = false))
+        messages[thinkingIndex] = ChatMessage("🤖 Taking control to work on this...", isUser = false)
+        adapter.notifyItemChanged(thinkingIndex)
         scrollToBottom()
-        val statusIndex = messages.size - 1
+        OverlayBubble.show(this, "Working on it...")
 
         val runner = AutonomousTaskRunner(
             context = this,
             onStatusUpdate = { status ->
-                messages[statusIndex] = ChatMessage(status, isUser = false)
-                adapter.notifyItemChanged(statusIndex)
+                messages[thinkingIndex] = ChatMessage(status, isUser = false)
+                adapter.notifyItemChanged(thinkingIndex)
                 scrollToBottom()
+                OverlayBubble.show(this, status)
             },
             onFinished = { finalMessage ->
-                messages[statusIndex] = ChatMessage(finalMessage, isUser = false)
-                adapter.notifyItemChanged(statusIndex)
+                messages[thinkingIndex] = ChatMessage(finalMessage, isUser = false)
+                adapter.notifyItemChanged(thinkingIndex)
                 scrollToBottom()
                 persistCurrentConversation()
+                OverlayBubble.hide(this)
             }
         )
         runner.start(goal)
     }
 
-    private fun sendToServer(text: String, attachmentNames: List<String>) {
-        // Show a temporary "thinking" bubble while waiting for the server.
-        adapter.addMessage(ChatMessage("…", isUser = false))
-        scrollToBottom()
-        val thinkingIndex = messages.size - 1
-
-        // The full conversation so far (excluding the "…" placeholder just added)
-        // so the backend can give the model real context instead of treating
-        // every message as a fresh, memory-less exchange. hml-agent-server needs
-        // to actually read this array and pass it through as prior turns.
+    private fun sendToServer(text: String, attachmentNames: List<String>, thinkingIndex: Int) {
+        // The full conversation so far (excluding the "…" placeholder at
+        // thinkingIndex) so the backend can give the model real context
+        // instead of treating every message as a fresh, memory-less
+        // exchange. hml-agent-server needs to actually read this array
+        // and pass it through as prior turns.
         val historyArray = JSONArray()
-        for (m in messages.take(messages.size - 1)) {
+        for ((index, m) in messages.withIndex()) {
+            if (index == thinkingIndex) continue
             historyArray.put(JSONObject().apply {
                 put("role", if (m.isUser) "user" else "assistant")
                 put("content", m.text)
@@ -717,5 +819,9 @@ class MainActivity : AppCompatActivity() {
         /** Intent extra used to jump straight to a specific conversation when the
          * app is launched from a pinned Home-screen shortcut. */
         const val EXTRA_OPEN_CONVERSATION_ID = "open_conversation_id"
+
+        /** Intent extra carrying a compound-command goal to run immediately when
+         * the app is launched from a scheduled-autonomous-task notification. */
+        const val EXTRA_PENDING_AUTONOMOUS_GOAL = "pending_autonomous_goal"
     }
 }

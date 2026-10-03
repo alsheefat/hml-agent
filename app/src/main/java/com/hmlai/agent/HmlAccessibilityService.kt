@@ -1,11 +1,17 @@
 package com.hmlai.agent
 
 import android.accessibilityservice.AccessibilityService
+import android.accessibilityservice.AccessibilityService.TakeScreenshotCallback
 import android.accessibilityservice.GestureDescription
+import android.accessibilityservice.AccessibilityService.ScreenshotResult
+import android.content.Context
 import android.graphics.Path
 import android.graphics.Rect
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.provider.Settings
+import android.text.TextUtils
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 
@@ -31,6 +37,29 @@ class HmlAccessibilityService : AccessibilityService() {
             private set
 
         fun isRunning(): Boolean = instance != null
+
+        /** Checks whether the user has enabled HML Agent's Accessibility
+         * Service in Android Settings, regardless of whether it's finished
+         * binding yet (isRunning() can briefly be false right after the
+         * user enables it, before Android actually connects the service —
+         * checking this separately lets the app tell the difference
+         * between "never enabled" and "enabled, just starting up"). */
+        fun isEnabledInSettings(context: Context): Boolean {
+            val expectedComponent = "${context.packageName}/${HmlAccessibilityService::class.java.name}"
+            val enabledServices = Settings.Secure.getString(
+                context.contentResolver,
+                Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+            ) ?: return false
+
+            val splitter = TextUtils.SimpleStringSplitter(':')
+            splitter.setString(enabledServices)
+            while (splitter.hasNext()) {
+                if (splitter.next().equals(expectedComponent, ignoreCase = true)) {
+                    return true
+                }
+            }
+            return false
+        }
     }
 
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -68,6 +97,58 @@ class HmlAccessibilityService : AccessibilityService() {
             "The current screen has no readable elements."
         } else {
             elements.joinToString("\n")
+        }
+    }
+
+    /** Captures an actual screenshot of the current screen as base64-
+     * encoded JPEG, so the AI can see icon-only buttons, images, and
+     * visual layout that the text-only element list above can't
+     * capture — confirmed as a real gap by two independent reference
+     * projects (PokeClaw, Mobilerun) that both combine accessibility
+     * trees with screenshots rather than relying on text alone.
+     * Requires API 30+ (Android 11); returns null below that or on
+     * failure, and callers should fall back to text-only in that case. */
+    fun captureScreenshotBase64(callback: (String?) -> Unit) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+            callback(null)
+            return
+        }
+
+        try {
+            takeScreenshot(
+                android.view.Display.DEFAULT_DISPLAY,
+                mainExecutor,
+                object : TakeScreenshotCallback {
+                    override fun onSuccess(result: ScreenshotResult) {
+                        try {
+                            val bitmap = android.graphics.Bitmap.wrapHardwareBuffer(
+                                result.hardwareBuffer, result.colorSpace
+                            )
+                            if (bitmap == null) {
+                                callback(null)
+                                return
+                            }
+                            val softwareBitmap = bitmap.copy(android.graphics.Bitmap.Config.ARGB_8888, false)
+                            result.hardwareBuffer.close()
+
+                            val outputStream = java.io.ByteArrayOutputStream()
+                            softwareBitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 70, outputStream)
+                            val base64 = android.util.Base64.encodeToString(
+                                outputStream.toByteArray(), android.util.Base64.NO_WRAP
+                            )
+                            callback(base64)
+                        } catch (e: Exception) {
+                            callback(null)
+                        }
+                    }
+
+                    override fun onFailure(errorCode: Int) {
+                        callback(null)
+                    }
+                }
+            )
+        } catch (e: Exception) {
+            callback(null)
         }
     }
 
