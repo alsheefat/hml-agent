@@ -487,6 +487,18 @@ object DeviceCommandHandler {
         return null
     }
 
+    /** Context.getSystemService(SmsManager) only exists on Android 12+ (API 31); on
+     * Android 8–11 it returns null, which made texting silently fail there. */
+    @Suppress("DEPRECATION")
+    private fun obtainSmsManager(context: Context): android.telephony.SmsManager {
+        return if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+            context.getSystemService(android.telephony.SmsManager::class.java)
+                ?: android.telephony.SmsManager.getDefault()
+        } else {
+            android.telephony.SmsManager.getDefault()
+        }
+    }
+
     private fun openSms(context: Context, contactName: String, message: String): String {
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.SEND_SMS)
             != PackageManager.PERMISSION_GRANTED
@@ -498,15 +510,7 @@ object DeviceCommandHandler {
             ?: return "I couldn't find a contact named \"$contactName\" to text."
 
         return try {
-            // Context.getSystemService(SmsManager) only exists on Android 12+ (API 31);
-            // on Android 8–11 it returns null, so the text silently failed there.
-            val smsManager: android.telephony.SmsManager =
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
-                    context.getSystemService(android.telephony.SmsManager::class.java)
-                } else {
-                    @Suppress("DEPRECATION")
-                    android.telephony.SmsManager.getDefault()
-                }
+            val smsManager = obtainSmsManager(context)
             // divideMessage handles texts longer than a single 160-char SMS.
             val parts = smsManager.divideMessage(message)
             if (parts.size > 1) {
