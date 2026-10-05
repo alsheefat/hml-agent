@@ -2,14 +2,11 @@ name: Build Debug Apk
 
 on:
   push:
+    branches: [ "**" ]
   workflow_dispatch:
-
-permissions:
-  contents: read
 
 jobs:
   build:
-    name: Build and publish HML-Agent-v1.5.apk
     runs-on: ubuntu-latest
 
     steps:
@@ -27,26 +24,12 @@ jobs:
         run: chmod +x ./gradlew
 
       - name: Build Debug APK
-        run: ./gradlew :app:assembleDebug --stacktrace
-
-      - name: Normalize APK filename
-        shell: bash
-        run: |
-          set -e
-          OUT="app/build/outputs/apk/debug"
-          if [ -f "$OUT/app-debug.apk" ]; then
-            mv -f "$OUT/app-debug.apk" "$OUT/HML-Agent-v1.5.apk"
-          fi
-          test -f "$OUT/HML-Agent-v1.5.apk"
-          rm -f "$OUT/app-debug.apk"
-          echo "Final APK:"
-          ls -lah "$OUT"
+        run: ./gradlew assembleDebug --stacktrace
 
       - name: Upload debug APK artifact
-        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: hml-agent-debug-apk
-          path: app/build/outputs/apk/debug/HML-Agent-v1.5.apk
+          path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 30
