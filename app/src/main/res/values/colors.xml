@@ -45,4 +45,12 @@
 
     <color name="chip_bg">#111721</color>
     <color name="color_error">#FF667A</color>
+
+    <!-- Kept for backward compatibility. The UI redesign dropped these, but older drawables
+         (status_dot_glow.xml, etc.) can still be sitting in a repo that was updated by copying
+         files over the top — an orphaned drawable pointing at a missing color breaks the whole
+         build ("resource color/status_dot_halo not found"). Harmless if unused. -->
+    <color name="status_dot_halo">#333D74FF</color>
+    <color name="drawer_bg">#000000</color>
+    <color name="bubble_user_border">#755E89FF</color>
 </resources>
