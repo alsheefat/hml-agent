@@ -204,29 +204,38 @@ class MainActivity : AppCompatActivity() {
         // Glass composer picks up the focus border from the concept.
         input.setOnFocusChangeListener { _, hasFocus -> composerWrap.isActivated = hasFocus }
 
-        // Stage 19: take control of system/IME insets explicitly. Android 15 can keep the
-        // window edge-to-edge even when adjustResize is requested, so the old approach could
-        // leave the composer underneath the keyboard on some keyboards/OEM builds.
+        // Android 15 is edge-to-edge here. The important rule is: NEVER add the IME height
+        // to the composer's layout padding. Doing that makes the composer itself taller, which
+        // moves its top edge upward and makes the entire chat area appear to jump with it.
+        // Keep the layout anchored at the real bottom and translate only the visual composer
+        // above the keyboard. The message list keeps its own layout bounds.
         val topBar = findViewById<View>(R.id.topBar)
         val composerContainer = findViewById<View>(R.id.composerContainer)
+        val baseMessagePaddingBottom = messageList.paddingBottom
         ViewCompat.setOnApplyWindowInsetsListener(drawerLayout) { _, insets ->
             val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             val ime = insets.getInsets(WindowInsetsCompat.Type.ime())
-            val bottom = maxOf(bars.bottom, ime.bottom)
             topBar.setPadding(topBar.paddingLeft, bars.top + 6, topBar.paddingRight, topBar.paddingBottom)
-            // Keep the composer directly above the active keyboard; when the IME is hidden,
-            // only reserve the small navigation-safe gap instead of lifting the bar by the
-            // full system-bar inset.
-            val composerBottom = if (ime.bottom > 0) ime.bottom + 2 else 8
-            composerContainer.setPadding(
-                composerContainer.paddingLeft,
-                composerContainer.paddingTop,
-                composerContainer.paddingRight,
-                composerBottom
-            )
-            // The drawer is edge-to-edge too, but its content must never hide behind
-            // the status/navigation bars. Keep its own visual padding and add only the
-            // system-safe inset on top/bottom so the header and Guest card stay intact.
+
+            // Move only the composer. Do not resize/pad the container by the IME height.
+            composerContainer.translationY = if (ime.bottom > 0) -ime.bottom.toFloat() else 0f
+
+            // Keep the latest message above the keyboard + composer when the IME is open,
+            // without translating the chat itself. The view's actual bounds stay put.
+            fun updateMessagePadding() {
+                val extra = if (ime.bottom > 0) ime.bottom + composerContainer.height + dp(8) else 0
+                messageList.setPadding(
+                    messageList.paddingLeft,
+                    messageList.paddingTop,
+                    messageList.paddingRight,
+                    baseMessagePaddingBottom + extra
+                )
+            }
+            updateMessagePadding()
+            if (ime.bottom > 0) composerContainer.post { updateMessagePadding() }
+
+            // The drawer is edge-to-edge too; only its safe system-bar insets affect its
+            // internal padding. The IME must never resize or lift the drawer.
             drawerPanel.setPadding(
                 drawerPanel.paddingLeft,
                 dp(18) + bars.top,
@@ -1265,8 +1274,15 @@ class MainActivity : AppCompatActivity() {
             })
         }
 
+        val ordinaryTurnNumber = messages
+            .take(thinkingIndex)
+            .count { it.isUser && isOrdinaryConversation(it.text) } +
+            if (isOrdinaryConversation(text)) 1 else 0
+        val reactionRequired = isOrdinaryConversation(text) && ((ordinaryTurnNumber - 1) % 5 in 0..2)
+
         val json = JSONObject().apply {
             put("message", text)
+            put("reaction_required", reactionRequired)
             put("attachments", attachmentArray)
             put("images", attachmentArray)
             put("attachment_names", JSONArray(attachmentNames))
@@ -1282,13 +1298,29 @@ class MainActivity : AppCompatActivity() {
                     "screen_control", "accessibility", "screenshot_vision", "multimodal_attachments",
                     "youtube_first_for_music", "cross_app_missions", "recovery", "verification"
                 )))
-                put("behavior", "React naturally to emotion and context. For ordinary conversational messages, do not answer like a dry search box: acknowledge, react, or show a small human conversational cue when appropriate. Aim to include a genuine natural reaction in roughly 3 out of every 5 ordinary conversational turns, but never force a reaction into a command, factual lookup, or autonomous mission where it would feel unnatural. Vary the wording; do not repeat canned phrases. Distinguish conversation from commands. Resolve it/that/this/the second one from context. For missions use understand -> plan -> act -> observe -> verify -> recover -> finish. Never invent success.")
+                put("behavior", "React naturally to emotion and context. For ordinary conversational messages, do not answer like a dry search box: acknowledge, react, or show a small human conversational cue when appropriate. When reaction_required is true, a brief genuine reaction is REQUIRED before the useful answer. Target at least 3 of every 5 ordinary conversational turns, but never force a reaction into a command, factual lookup, or autonomous mission where it would feel unnatural. Vary the wording; do not repeat canned phrases. Distinguish conversation from commands. Resolve it/that/this/the second one from context. For missions use understand -> plan -> act -> observe -> verify -> recover -> finish. Never invent success.")
             })
         }.toString()
 
         val body = json.toRequestBody("application/json; charset=utf-8".toMediaType())
         val request = Request.Builder().url(serverUrl).post(body).build()
         enqueueChatRequest(request, convId, thinkingIndex, attempt = 1)
+    }
+
+    private fun isOrdinaryConversation(text: String): Boolean {
+        val t = text.trim().lowercase(Locale.getDefault())
+        if (t.isBlank()) return false
+        val commandPrefixes = listOf(
+            "open ", "launch ", "play ", "search ", "find ", "call ", "message ",
+            "send ", "set ", "remind ", "schedule ", "turn on ", "turn off ",
+            "take a screenshot", "screenshot", "go to ", "start ", "download ",
+            "delete ", "rename ", "pin ", "share "
+        )
+        if (commandPrefixes.any { t.startsWith(it) }) return false
+        if (t.contains(" via whatsapp") || t.contains(" on whatsapp") ||
+            t.contains(" on messenger") || t.contains(" on telegram") ||
+            t.contains(" on youtube")) return false
+        return true
     }
 
     private fun isContextualMissionFollowUp(text: String): Boolean {

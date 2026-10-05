@@ -35,7 +35,7 @@ object ConversationStore {
         }
         return result
             .distinctBy { it.id }
-            .sortedWith(compareByDescending<Conversation> { it.pinned }.thenByDescending { it.createdAt })
+            .sortedWith(compareByDescending<Conversation> { it.pinned }.thenByDescending { it.updatedAt })
             .toMutableList()
     }
 
@@ -51,7 +51,8 @@ object ConversationStore {
             title = if (previous?.customTitle == true) previous.title else conversation.title,
             pinned = previous?.pinned ?: conversation.pinned,
             customTitle = previous?.customTitle ?: conversation.customTitle,
-            createdAt = previous?.createdAt ?: conversation.createdAt
+            createdAt = previous?.createdAt ?: conversation.createdAt,
+            updatedAt = System.currentTimeMillis()
         )
         writeAtomic(context, merged)
         trimOldConversations(context)
@@ -77,8 +78,7 @@ object ConversationStore {
     private fun migrateLegacyIfNeeded(context: Context) {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val targetDir = dir(context)
-        val hasFiles = targetDir.listFiles { file -> file.isFile && file.extension == "json" }?.isNotEmpty() == true
-        if (prefs.getBoolean(MIGRATED_KEY, false) || hasFiles) return
+        if (prefs.getBoolean(MIGRATED_KEY, false)) return
 
         val raw = prefs.getString(KEY, null) ?: run {
             prefs.edit().putBoolean(MIGRATED_KEY, true).commit()
@@ -89,8 +89,11 @@ object ConversationStore {
         for (i in 0 until array.length()) {
             try {
                 val conversation = parseConversation(array.getJSONObject(i).toString()) ?: continue
-                writeAtomic(context, conversation)
-                imported++
+                val target = File(targetDir, safeName(conversation.id))
+                if (!target.exists()) {
+                    writeAtomic(context, conversation)
+                    imported++
+                }
             } catch (_: Exception) {
                 // Preserve the rest of the legacy history even if one old record is bad.
             }
@@ -124,6 +127,7 @@ object ConversationStore {
             title = title,
             messages = messages,
             createdAt = obj.optLong("createdAt", System.currentTimeMillis()),
+            updatedAt = obj.optLong("updatedAt", obj.optLong("createdAt", System.currentTimeMillis())),
             pinned = obj.optBoolean("pinned", false),
             customTitle = obj.optBoolean("customTitle", false)
         )
@@ -143,6 +147,7 @@ object ConversationStore {
         put("id", c.id)
         put("title", c.title)
         put("createdAt", c.createdAt)
+        put("updatedAt", c.updatedAt)
         put("pinned", c.pinned)
         put("customTitle", c.customTitle)
         put("messages", JSONArray().also { arr ->

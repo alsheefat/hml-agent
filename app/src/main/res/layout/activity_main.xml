@@ -11,18 +11,8 @@
         android:layout_height="match_parent"
         android:background="@drawable/app_bg">
 
-        <!-- Soft atmospheric fade, not a panel: it sits behind the controls and has no
-             border/surface of its own, so the header feels like it is floating. -->
-        <View
-            android:id="@+id/topAtmosphere"
-            android:layout_width="0dp"
-            android:layout_height="160dp"
-            android:background="@drawable/top_bar_fade"
-            android:clickable="false"
-            android:focusable="false"
-            app:layout_constraintTop_toTopOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintEnd_toEndOf="parent" />
+        <!-- The app background itself provides the soft upper glow. There is intentionally
+             no full-width header surface here: each top control owns its own rounded surface. -->
 
         <!-- Quiet, icon-led top bar. -->
         <LinearLayout
@@ -488,11 +478,10 @@
             android:layout_marginTop="21dp"
             android:layout_marginBottom="8dp"
             android:text="@string/recent"
-            android:textAllCaps="true"
             android:textColor="#556275"
-            android:textSize="9sp"
-            android:fontFamily="monospace"
-            android:letterSpacing="0.1" />
+            android:textSize="10sp"
+            android:fontFamily="sans-serif-medium"
+            android:letterSpacing="0.03" />
 
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/historyList"

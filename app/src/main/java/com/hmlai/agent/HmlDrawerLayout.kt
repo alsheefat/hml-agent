@@ -25,21 +25,17 @@ class HmlDrawerLayout @JvmOverloads constructor(
                 downY = ev.y
                 trackingEdge = !isDrawerOpen(android.view.Gravity.LEFT) && downX <= edgeStartPx
             }
-            MotionEvent.ACTION_CANCEL -> trackingEdge = false
+            MotionEvent.ACTION_MOVE -> if (trackingEdge) {
+                val dx = ev.x - downX
+                val dy = abs(ev.y - downY)
+                if (dx >= openDistancePx && dx > dy * 1.15f) {
+                    trackingEdge = false
+                    openDrawer(android.view.Gravity.LEFT, true)
+                    return true
+                }
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> trackingEdge = false
         }
         return super.onInterceptTouchEvent(ev)
-    }
-
-    override fun onTouchEvent(ev: MotionEvent): Boolean {
-        if (ev.actionMasked == MotionEvent.ACTION_UP && trackingEdge) {
-            val dx = ev.x - downX
-            val dy = abs(ev.y - downY)
-            trackingEdge = false
-            if (dx >= openDistancePx && dx > dy * 1.15f) {
-                openDrawer(android.view.Gravity.LEFT, true)
-                return true
-            }
-        }
-        return super.onTouchEvent(ev)
     }
 }

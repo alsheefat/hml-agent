@@ -1,27 +1,47 @@
-# HML Agent — Stage 23
+# HML Agent — Stage 23 (rechecked / corrected)
 
-Stage 23 is additive and keeps the Stage 22 UI/features intact.
+Stage 23 preserves the Stage 22 feature set and fixes the actual UI geometry problem instead of merely moving the chat surface.
 
-## 1. Durable conversation history
-- Replace the single growing SharedPreferences JSON blob with one atomic JSON file per conversation.
-- Automatically migrate existing Stage 22/earlier SharedPreferences history on first launch.
-- A malformed conversation can no longer hide the rest of the history.
-- Long chats are no longer dependent on one ever-growing preference transaction.
-- Keep the existing rename/pin/delete/share/home-shortcut behavior.
-- Increase retained history from 50 to 100 conversations.
+## 1. Composer + chat geometry (primary fix)
+- The root cause was `adjustNothing` combined with adding the IME height to `composerContainer` bottom padding.
+- That increased the composer's layout height, so its top edge moved upward.
+- `messageList`/home content was constrained to the composer's layout top, so the visible chat area appeared to move upward too.
+- Stage 23 no longer adds IME height to composer padding.
+- The composer remains bottom-anchored and is translated above the keyboard only visually.
+- The chat list keeps its layout bounds and receives only bottom content padding so the latest message stays above the keyboard/composer.
+- Focused and unfocused composer use the same glass surface; no focus-state layout jump.
 
-## 2. More natural HML reactions
-- Strengthen the model behavior contract so ordinary conversation gets a genuine conversational reaction when appropriate.
-- Target roughly 3 of 5 ordinary conversational turns, while explicitly avoiding forced reactions for commands, factual lookups, and autonomous missions.
-- Tell HML to vary phrasing and avoid repetitive canned reactions.
+## 2. Top controls
+- Removed the shared full-width atmospheric header layer that was visibly behaving like a rectangle.
+- The existing app background supplies the subtle upper glow.
+- Existing individual button surfaces remain unchanged.
+- Hamburger and Temporary/clock shapes are unchanged; only their gray tint is corrected to the existing HML blue.
+- The solved 3-dot conversation menu is untouched.
 
-## 3. Shorter drawer swipe
-- Add a small HML DrawerLayout subclass with a short left-edge swipe trigger (~28dp edge start, ~42dp horizontal travel).
-- Existing hamburger button behavior remains unchanged.
+## 3. History durability
+- One atomic JSON file per conversation instead of one growing SharedPreferences blob.
+- Existing legacy history is migrated even if a partial file-store migration already exists; existing per-chat files are never overwritten by legacy migration.
+- Malformed chats are isolated instead of hiding the whole history.
+- Long conversations are not limited by one SharedPreferences transaction.
+- 100 retained conversations.
+- Recent ordering uses `updatedAt`.
 
-## 4. Build output
-- Keep installed app name `HML Agent`.
-- Produce an additional CI APK named `HML-Agent-v1.5.apk` without using the incompatible AGP `outputFileName` API.
+## 4. Conversational reactions
+- Ordinary conversational turns are counted locally.
+- Three of every five ordinary turns are explicitly marked `reaction_required=true`.
+- The server behavior contract requires a brief natural reaction when that flag is true.
+- Commands, factual lookups, and autonomous missions are excluded.
+- Wording should vary instead of repeating canned reactions.
+
+## 5. Drawer swipe
+- Left-edge swipe opens after ~42dp horizontal travel from a 28dp edge zone.
+- Threshold is handled during MOVE so DrawerLayout cannot consume the gesture before HML opens it.
+- Hamburger button behavior remains unchanged.
+
+## 6. Build output
+- Installed application remains `HML Agent`.
+- `assembleDebug` additionally copies the debug APK to `HML-Agent-v1.5.apk`.
+- No incompatible AGP `outputFileName` API.
 
 ## Preservation rule
-No existing feature is intentionally removed or replaced. Stage 23 only hardens storage, improves conversational behavior, adds the shorter swipe gesture, and fixes the APK naming build failure.
+No existing feature is intentionally removed. The 3-dot menu and its current functionality are explicitly left alone.
