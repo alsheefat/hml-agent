@@ -15,6 +15,14 @@ android {
         versionName = "1.5"
     }
 
+    androidComponents {
+        onVariants { variant ->
+            variant.outputs.forEach { output ->
+                output.outputFileName.set("HML-Agent-v1.5.apk")
+            }
+        }
+    }
+
     signingConfigs {
         getByName("debug") {
             storeFile = file("../keystore/debug.keystore")

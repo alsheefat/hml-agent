@@ -214,11 +214,15 @@ class MainActivity : AppCompatActivity() {
             val ime = insets.getInsets(WindowInsetsCompat.Type.ime())
             val bottom = maxOf(bars.bottom, ime.bottom)
             topBar.setPadding(topBar.paddingLeft, bars.top + 6, topBar.paddingRight, topBar.paddingBottom)
+            // Keep the composer directly above the active keyboard; when the IME is hidden,
+            // only reserve the small navigation-safe gap instead of lifting the bar by the
+            // full system-bar inset.
+            val composerBottom = if (ime.bottom > 0) ime.bottom + 2 else 8
             composerContainer.setPadding(
                 composerContainer.paddingLeft,
                 composerContainer.paddingTop,
                 composerContainer.paddingRight,
-                6 + bottom
+                composerBottom
             )
             // The drawer is edge-to-edge too, but its content must never hide behind
             // the status/navigation bars. Keep its own visual padding and add only the

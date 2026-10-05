@@ -16,7 +16,7 @@
         <View
             android:id="@+id/topAtmosphere"
             android:layout_width="0dp"
-            android:layout_height="112dp"
+            android:layout_height="160dp"
             android:background="@drawable/top_bar_fade"
             android:clickable="false"
             android:focusable="false"
