@@ -45,6 +45,7 @@ class AutonomousTaskRunner(
 
     private var consecutiveFailures = 0
     private var recoveryPasses = 0
+    private var verificationPasses = 0
     private val maxConsecutiveFailures = 3
     private val maxRecoveryPasses = 2
 
@@ -56,6 +57,7 @@ class AutonomousTaskRunner(
         currentStep = 0
         consecutiveFailures = 0
         recoveryPasses = 0
+        verificationPasses = 0
         cancelled = false
         finished = false
         startedAt = System.currentTimeMillis()
@@ -168,6 +170,10 @@ class AutonomousTaskRunner(
             put("step", currentStep)
             put("max_steps", maxSteps)
             put("recovery_passes", recoveryPasses)
+            put("verification_passes", verificationPasses)
+            put("must_verify_completion", true)
+            put("completion_rule", "Do not mark the mission done merely because an intermediate action succeeded. Continue until the user's original goal is visibly achieved on the current screen. For YouTube requests such as playing/watching a latest video, opening YouTube and typing a search query is NOT completion: inspect results, choose the intended latest/relevant result, open it, and verify playback before done.")
+            put("device_context", DeviceAwareness.snapshot(context))
             if (screenshotBase64 != null) put("screenshot", screenshotBase64)
         }.toString()
 
@@ -178,7 +184,18 @@ class AutonomousTaskRunner(
 
         client.newCall(request).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
-                mainHandler.post { finishOnce("Couldn't reach HML Agent to plan the next step. Check your connection.") }
+                mainHandler.post {
+                    if (cancelled || finished) return@post
+                    if (currentStep < maxSteps && recoveryPasses < maxRecoveryPasses) {
+                        recoveryPasses++
+                        onStatusUpdate("Connection interrupted · retrying safely")
+                        mainHandler.postDelayed({
+                            if (!cancelled && !finished) step(goal, history + "NETWORK RECOVERY: Planner request failed; retry once the connection is available.")
+                        }, 900L * recoveryPasses)
+                    } else {
+                        finishOnce("Couldn't reach HML Agent to plan the next step. Check your connection.")
+                    }
+                }
             }
 
             override fun onResponse(call: Call, response: okhttp3.Response) {
@@ -250,7 +267,19 @@ class AutonomousTaskRunner(
                                     if (!cancelled && !finished) step(goal, history + "Verification pass requested by planner")
                                 }, 500)
                             }
-                            "done" -> finishOnce(reasoning.ifEmpty { "Done." })
+                            "done" -> {
+                                if (verificationPasses < 2) {
+                                    verificationPasses++
+                                    onStatusUpdate("Verifying completion · pass $verificationPasses/2")
+                                    mainHandler.postDelayed({
+                                        if (!cancelled && !finished) {
+                                            step(goal, history + "PLANNER CLAIMED DONE: do not stop. Visually verify that the ORIGINAL USER GOAL is actually complete. If a YouTube search is visible, continue to the intended video and verify playback.")
+                                        }
+                                    }, 600)
+                                } else {
+                                    finishOnce(reasoning.ifEmpty { "Done." })
+                                }
+                            }
                             else -> finishOnce("I wasn't sure how to continue this task safely, so I stopped.")
                         }
                     } catch (_: Exception) {

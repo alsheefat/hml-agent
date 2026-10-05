@@ -31,6 +31,7 @@
 
     <string name="new_chat">New chat</string>
     <string name="temporary_chat">Temporary chat</string>
+    <string name="temporary_chat_title">Temporary chat</string>
     <string name="temporary_chat_banner">Temporary chat — won’t be saved to history</string>
     <string name="recent">Recent</string>
     <string name="conversation_options">Conversation options</string>
@@ -107,7 +108,7 @@
     <string name="status_ready">READY</string>
     <string name="status_local">LOCAL APP</string>
     <string name="new_conversation">New conversation</string>
-    <string name="temporary_badge">TEMPORARY</string>
+    <string name="temporary_badge">TEMP • NOT SAVED</string>
     <string name="task_title">Autonomous task</string>
     <string name="task_ready">READY</string>
     <string name="task_live">LIVE</string>

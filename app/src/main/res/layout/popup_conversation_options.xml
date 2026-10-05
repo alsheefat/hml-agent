@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="172dp"
+    android:layout_width="104dp"
     android:layout_height="wrap_content"
     android:orientation="vertical"
     android:background="@drawable/popup_menu_bg"
@@ -15,7 +15,7 @@
         android:textColor="@color/text_primary"
         android:textSize="13sp"
         android:gravity="center_vertical"
-        android:paddingHorizontal="15dp"
+        android:paddingHorizontal="13dp"
         android:background="?attr/selectableItemBackground"
         android:clickable="true"
         android:focusable="true" />
@@ -28,7 +28,7 @@
         android:textColor="@color/text_primary"
         android:textSize="13sp"
         android:gravity="center_vertical"
-        android:paddingHorizontal="15dp"
+        android:paddingHorizontal="13dp"
         android:background="?attr/selectableItemBackground"
         android:clickable="true"
         android:focusable="true" />
@@ -41,7 +41,7 @@
         android:textColor="@color/text_primary"
         android:textSize="13sp"
         android:gravity="center_vertical"
-        android:paddingHorizontal="15dp"
+        android:paddingHorizontal="13dp"
         android:background="?attr/selectableItemBackground"
         android:clickable="true"
         android:focusable="true" />
@@ -54,7 +54,7 @@
         android:textColor="@color/text_primary"
         android:textSize="13sp"
         android:gravity="center_vertical"
-        android:paddingHorizontal="15dp"
+        android:paddingHorizontal="13dp"
         android:background="?attr/selectableItemBackground"
         android:clickable="true"
         android:focusable="true" />
@@ -73,7 +73,7 @@
         android:textColor="@color/color_error"
         android:textSize="13sp"
         android:gravity="center_vertical"
-        android:paddingHorizontal="15dp"
+        android:paddingHorizontal="13dp"
         android:background="?attr/selectableItemBackground"
         android:clickable="true"
         android:focusable="true" />

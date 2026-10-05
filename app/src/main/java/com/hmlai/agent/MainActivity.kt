@@ -4,8 +4,11 @@ import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Color
 import android.graphics.LinearGradient
 import android.graphics.Shader
+import android.graphics.drawable.GradientDrawable
+import android.view.Gravity
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -19,6 +22,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.EditText
+import android.widget.FrameLayout
 import android.widget.HorizontalScrollView
 import android.widget.ImageView
 import android.widget.ImageButton
@@ -82,6 +86,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var chatHeader: View
     private lateinit var chatTitle: TextView
     private lateinit var composerWrap: View
+    private lateinit var composerBlur: BlurBehindView
     private lateinit var taskCard: View
     private lateinit var taskLive: TextView
     private lateinit var taskStatus: TextView
@@ -117,7 +122,7 @@ class MainActivity : AppCompatActivity() {
     ) { uris -> uris.forEach { addAttachment(it) } }
 
     private var speechRecognizer: SpeechRecognizer? = null
-    private var voiceDialog: AlertDialog? = null
+    private var voiceDialog: android.app.Dialog? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -130,6 +135,11 @@ class MainActivity : AppCompatActivity() {
         adapter = ChatAdapter(messages)
         messageList.layoutManager = LinearLayoutManager(this)
         messageList.adapter = adapter
+        messageList.addOnScrollListener(object : RecyclerView.OnScrollListener() {
+            override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
+                if (::composerBlur.isInitialized) composerBlur.invalidate()
+            }
+        })
 
         input = findViewById(R.id.messageInput)
         val sendButton = findViewById<ImageButton>(R.id.sendButton)
@@ -148,6 +158,8 @@ class MainActivity : AppCompatActivity() {
         chatHeader = findViewById(R.id.chatHeader)
         chatTitle = findViewById(R.id.chatTitle)
         composerWrap = findViewById(R.id.composerWrap)
+        composerBlur = findViewById(R.id.composerBlur)
+        homeContentView.setOnScrollChangeListener { _, _, _, _, _ -> composerBlur.invalidate() }
         taskCard = findViewById(R.id.taskCard)
         taskLive = findViewById(R.id.taskLive)
         taskStatus = findViewById(R.id.taskStatus)
@@ -168,6 +180,7 @@ class MainActivity : AppCompatActivity() {
         setupAccountRow(accountRow)
         setupCommandChips()
         updateHomeVisibility()
+        composerBlur.setSource(homeContentView)
         requestDevicePermissionsIfNeeded()
 
         sendButton.setOnClickListener {
@@ -424,6 +437,17 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showRenameDialog(conversation: Conversation) {
+        val dialog = android.app.Dialog(this)
+        val root = premiumDialogRoot(320)
+
+        val eyebrow = dialogText("CONVERSATION NAME", 9f, R.color.text_muted, true)
+        root.addView(eyebrow, lp(-1, 20))
+        val title = dialogText(getString(R.string.rename_conversation), 20f, R.color.text_primary, true)
+        root.addView(title, lp(-1, 32))
+        val subtitle = dialogText("Give this chat a name you will recognize later.", 11f, R.color.text_secondary, false)
+        subtitle.setPadding(0, 0, 0, dp(12))
+        root.addView(subtitle, lp(-1, -2))
+
         val editText = EditText(this).apply {
             setText(conversation.title)
             setSelection(text.length)
@@ -432,22 +456,170 @@ class MainActivity : AppCompatActivity() {
             background = ContextCompat.getDrawable(this@MainActivity, R.drawable.rename_field_bg)
             setTextColor(ContextCompat.getColor(this@MainActivity, R.color.text_primary))
             setHintTextColor(ContextCompat.getColor(this@MainActivity, R.color.text_muted))
-            setPadding(14, 0, 14, 0)
+            textSize = 14f
+            setPadding(dp(14), 0, dp(14), 0)
         }
-        MaterialAlertDialogBuilder(this)
-            .setTitle(R.string.rename_conversation)
-            .setMessage("Give this conversation a short name.")
-            .setView(editText)
-            .setPositiveButton(R.string.save) { _, _ ->
-                val newTitle = editText.text.toString().trim()
-                if (newTitle.isNotEmpty()) {
-                    ConversationStore.rename(this, conversation.id, newTitle)
-                    refreshHistory()
-                }
+        root.addView(editText, lp(-1, 48))
+
+        val buttons = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.END or Gravity.CENTER_VERTICAL
+            setPadding(0, dp(16), 0, 0)
+        }
+        val cancel = dialogButton("Cancel", false) { dialog.dismiss() }
+        val save = dialogButton(getString(R.string.save), true) {
+            val newTitle = editText.text.toString().trim()
+            if (newTitle.isNotEmpty()) {
+                ConversationStore.rename(this, conversation.id, newTitle)
+                refreshHistory()
             }
-            .setNegativeButton(android.R.string.cancel, null)
-            .show()
+            dialog.dismiss()
+        }
+        buttons.addView(cancel, lpWrap(88, 42))
+        buttons.addView(save, lpWrap(82, 42, 8))
+        root.addView(buttons, lp(-1, 58))
+
+        dialog.setContentView(root)
+        styleDialogWindow(dialog, 320)
+        dialog.show()
+        editText.requestFocus()
     }
+
+
+    private fun showGuestPanelDialog(statusText: String) {
+        val dialog = android.app.Dialog(this)
+        val root = premiumDialogRoot(320)
+
+        val icon = ImageView(this).apply {
+            setImageResource(R.drawable.ic_person)
+            imageTintList = android.content.res.ColorStateList.valueOf(ContextCompat.getColor(this@MainActivity, R.color.blue_glow))
+            background = circleBg("#102338", "#24577D")
+            setPadding(dp(15), dp(15), dp(15), dp(15))
+        }
+        val iconRow = LinearLayout(this).apply { gravity = Gravity.CENTER; addView(icon, lp(54, 54)) }
+        root.addView(iconRow, lp(-1, 66))
+        root.addView(dialogText("GUEST MODE", 9f, R.color.blue_glow, true).apply { gravity = Gravity.CENTER }, lp(-1, 20))
+        root.addView(dialogText("Guest", 21f, R.color.text_primary, true).apply { gravity = Gravity.CENTER }, lp(-1, 34))
+        root.addView(dialogText(statusText, 11f, R.color.text_secondary, false).apply { gravity = Gravity.CENTER; setPadding(0, 0, 0, dp(14)) }, lp(-1, -2))
+
+        val enable = dialogButton(getString(R.string.enable_autonomous_control), true) {
+            dialog.dismiss()
+            startActivity(Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS))
+        }
+        root.addView(enable, lp(-1, 46))
+        val logout = dialogButton(getString(R.string.log_out), false) {
+            dialog.dismiss()
+            val confirm = android.app.Dialog(this)
+            val croot = premiumDialogRoot(300)
+            croot.addView(dialogText("SIGN OUT", 9f, R.color.color_error, true), lp(-1, 20))
+            croot.addView(dialogText("Leave guest session?", 19f, R.color.text_primary, true), lp(-1, 32))
+            croot.addView(dialogText(getString(R.string.log_out_confirm), 11f, R.color.text_secondary, false), lp(-1, -2))
+            val row = LinearLayout(this).apply { gravity = Gravity.END; setPadding(0, dp(14), 0, 0) }
+            row.addView(dialogButton("Cancel", false) { confirm.dismiss() }, lpWrap(88, 42))
+            row.addView(dialogButton(getString(R.string.log_out), true) {
+                SessionManager.clear(this)
+                startActivity(Intent(this, LoginActivity::class.java))
+                finish()
+            }, lpWrap(82, 42, 8))
+            croot.addView(row, lp(-1, 58))
+            confirm.setContentView(croot)
+            styleDialogWindow(confirm, 300)
+            confirm.show()
+        }
+        root.addView(logout, lp(-1, 44).apply { topMargin = dp(7) })
+        root.addView(dialogButton("Close", false) { dialog.dismiss() }, lp(-1, 42).apply { topMargin = dp(2) })
+
+        dialog.setContentView(root)
+        styleDialogWindow(dialog, 320)
+        dialog.show()
+    }
+
+    private fun startPremiumVoiceDialog(): Pair<android.app.Dialog, TextView> {
+        val dialog = android.app.Dialog(this)
+        val root = premiumDialogRoot(320)
+        val stage = FrameLayout(this)
+        val halo = View(this).apply { background = circleBg("#10263B", "#22547A") }
+        stage.addView(halo, frameLp(118, 118, Gravity.CENTER))
+        val core = ImageView(this).apply {
+            setImageResource(R.drawable.ic_voice_wave)
+            imageTintList = android.content.res.ColorStateList.valueOf(Color.WHITE)
+            background = circleBg("#167BDB", "#2C9BFF")
+            setPadding(dp(30), dp(30), dp(30), dp(30))
+        }
+        stage.addView(core, frameLp(72, 72, Gravity.CENTER))
+        root.addView(stage, lp(-1, 128))
+        root.addView(dialogText("HML VOICE", 9f, R.color.blue_glow, true).apply { gravity = Gravity.CENTER }, lp(-1, 20))
+        root.addView(dialogText(getString(R.string.voice_input), 21f, R.color.text_primary, true).apply { gravity = Gravity.CENTER }, lp(-1, 34))
+        val message = dialogText(getString(R.string.voice_listening), 12f, R.color.text_secondary, false).apply {
+            gravity = Gravity.CENTER
+            setPadding(0, 0, 0, dp(14))
+        }
+        root.addView(message, lp(-1, -2))
+        root.addView(dialogButton(getString(R.string.voice_done), true) { stopVoiceInput(); dialog.dismiss() }, lp(-1, 46))
+        root.addView(dialogButton(getString(R.string.voice_cancel), false) { stopVoiceInput(); dialog.dismiss() }, lp(-1, 42).apply { topMargin = dp(7) })
+        dialog.setContentView(root)
+        styleDialogWindow(dialog, 320)
+        dialog.show()
+        core.animate().scaleX(1.08f).scaleY(1.08f).alpha(0.86f).setDuration(900).withEndAction {
+            core.animate().scaleX(1f).scaleY(1f).alpha(1f).setDuration(900).start()
+        }.start()
+        return dialog to message
+    }
+
+    private fun premiumDialogRoot(widthDp: Int): LinearLayout = LinearLayout(this).apply {
+        orientation = LinearLayout.VERTICAL
+        setPadding(dp(22), dp(20), dp(22), dp(18))
+        background = GradientDrawable().apply {
+            shape = GradientDrawable.RECTANGLE
+            cornerRadius = dp(22).toFloat()
+            setColor(Color.parseColor("#0D141C"))
+            setStroke(dp(1), Color.parseColor("#22384D"))
+        }
+        elevation = dp(18).toFloat()
+    }
+
+    private fun dialogText(textValue: String, size: Float, colorRes: Int, bold: Boolean): TextView = TextView(this).apply {
+        text = textValue
+        textSize = size
+        setTextColor(ContextCompat.getColor(this@MainActivity, colorRes))
+        if (bold) typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.BOLD)
+        includeFontPadding = false
+    }
+
+    private fun dialogButton(label: String, primary: Boolean, action: () -> Unit): TextView = TextView(this).apply {
+        text = label
+        textSize = 11f
+        gravity = Gravity.CENTER
+        typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)
+        setTextColor(if (primary) Color.WHITE else ContextCompat.getColor(this@MainActivity, R.color.text_secondary))
+        background = GradientDrawable().apply {
+            shape = GradientDrawable.RECTANGLE
+            cornerRadius = dp(13).toFloat()
+            setColor(Color.parseColor(if (primary) "#176FC1" else "#111B25"))
+            setStroke(dp(1), Color.parseColor(if (primary) "#2A83D8" else "#243444"))
+        }
+        setOnClickListener { action() }
+    }
+
+    private fun circleBg(fill: String, stroke: String): GradientDrawable = GradientDrawable().apply {
+        shape = GradientDrawable.OVAL
+        setColor(Color.parseColor(fill))
+        setStroke(dp(1), Color.parseColor(stroke))
+    }
+
+    private fun styleDialogWindow(dialog: android.app.Dialog, widthDp: Int) {
+        dialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
+        dialog.window?.addFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+        dialog.window?.attributes = dialog.window?.attributes?.apply { dimAmount = 0.62f }
+        dialog.setOnShowListener {
+            dialog.window?.setLayout(dp(widthDp), android.view.WindowManager.LayoutParams.WRAP_CONTENT)
+        }
+    }
+
+    private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
+    private fun lp(width: Int, height: Int): LinearLayout.LayoutParams = LinearLayout.LayoutParams(if (width < 0) LinearLayout.LayoutParams.MATCH_PARENT else dp(width), if (height < 0) LinearLayout.LayoutParams.WRAP_CONTENT else dp(height))
+    private fun lpWrap(width: Int, height: Int, marginStart: Int = 0): LinearLayout.LayoutParams = LinearLayout.LayoutParams(dp(width), dp(height)).apply { leftMargin = dp(marginStart) }
+    private fun frameLp(width: Int, height: Int, gravity: Int): FrameLayout.LayoutParams = FrameLayout.LayoutParams(dp(width), dp(height)).apply { this.gravity = gravity }
 
     private fun confirmDelete(conversation: Conversation) {
         val dialog = MaterialAlertDialogBuilder(this)
@@ -535,8 +707,12 @@ class MainActivity : AppCompatActivity() {
         // Chat header (title + TEMPORARY badge) belongs to the chat screen, but a temporary
         // chat also shows it on Home so the mode is never invisible.
         chatHeader.visibility = if (!showHome || isTemporaryChat) View.VISIBLE else View.GONE
-        chatTitle.text = messages.firstOrNull { it.isUser }?.text?.take(40)
-            ?: getString(R.string.new_conversation)
+        chatTitle.text = if (isTemporaryChat) getString(R.string.temporary_chat_title)
+            else messages.firstOrNull { it.isUser }?.text?.take(40)
+                ?: getString(R.string.new_conversation)
+        if (::composerBlur.isInitialized) {
+            composerBlur.setSource(if (showHome) homeContentView else messageList)
+        }
     }
 
     private fun setupAccountRow(accountRow: View) {
@@ -563,25 +739,7 @@ class MainActivity : AppCompatActivity() {
             } else {
                 getString(R.string.autonomous_control_off)
             }
-            MaterialAlertDialogBuilder(this)
-                .setTitle(R.string.autonomous_control)
-                .setMessage(statusText)
-                .setPositiveButton(R.string.enable_autonomous_control) { _, _ ->
-                    startActivity(Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS))
-                }
-                .setNegativeButton(R.string.log_out) { _, _ ->
-                    MaterialAlertDialogBuilder(this)
-                        .setMessage(R.string.log_out_confirm)
-                        .setPositiveButton(R.string.log_out) { _, _ ->
-                            SessionManager.clear(this)
-                            startActivity(Intent(this, LoginActivity::class.java))
-                            finish()
-                        }
-                        .setNegativeButton(android.R.string.cancel, null)
-                        .show()
-                }
-                .setNeutralButton(android.R.string.cancel, null)
-                .show()
+            showGuestPanelDialog(statusText)
         }
 
         accountRow.setOnLongClickListener {
@@ -732,21 +890,9 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
-        val message = TextView(this).apply {
-            text = getString(R.string.voice_listening)
-            setTextColor(ContextCompat.getColor(this@MainActivity, R.color.text_secondary))
-            textSize = 14f
-            setPadding(20, 4, 20, 12)
-        }
-        val dialog = MaterialAlertDialogBuilder(this)
-            .setTitle(R.string.voice_input)
-            .setView(message)
-            .setNegativeButton(R.string.voice_cancel) { _, _ -> stopVoiceInput() }
-            .setPositiveButton(R.string.voice_done) { _, _ -> stopVoiceInput() }
-            .create()
+        val (dialog, message) = startPremiumVoiceDialog()
         voiceDialog = dialog
         dialog.setOnDismissListener { speechRecognizer?.cancel(); speechRecognizer?.destroy(); speechRecognizer = null; voiceDialog = null }
-        dialog.show()
 
         speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this).also { recognizer ->
             recognizer.setRecognitionListener(object : RecognitionListener {
