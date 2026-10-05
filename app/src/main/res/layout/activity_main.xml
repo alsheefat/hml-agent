@@ -293,6 +293,22 @@
                         android:textColor="#53E7A2"
                         android:textSize="8sp"
                         android:fontFamily="monospace" />
+
+                    <TextView
+                        android:id="@+id/taskStopButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="28dp"
+                        android:layout_marginStart="8dp"
+                        android:background="@drawable/task_stop_bg"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:gravity="center"
+                        android:paddingHorizontal="10dp"
+                        android:text="@string/task_stop"
+                        android:textColor="#FF8190"
+                        android:textSize="8sp"
+                        android:fontFamily="monospace"
+                        android:contentDescription="@string/task_stop" />
                 </LinearLayout>
 
                 <TextView

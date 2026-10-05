@@ -81,7 +81,7 @@
     <string name="chip_phone_command">Call </string>
     <string name="autonomous_control_title">Autonomous Control</string>
     <string name="autonomous_control_badge">ACCESSIBILITY</string>
-    <string name="autonomous_control_desc">When Android Accessibility is enabled, HML can read the current screen and perform supported tap, type, scroll and back actions. The current runner stops after 12 steps for safety.</string>
+    <string name="autonomous_control_desc">When Android Accessibility is enabled, HML can read the current screen and perform supported tap, type, scroll and back actions. The current runner is bounded by 15 steps and two minutes, verifies action results, and asks before common high-impact actions.</string>
     <string name="send">Send</string>
     <string name="log_out">Log out</string>
     <string name="log_out_confirm">Log out of HML Agent?</string>
@@ -106,6 +106,13 @@
     <string name="task_ready">READY</string>
     <string name="task_live">LIVE</string>
     <string name="task_done">DONE</string>
+    <string name="task_stopped">STOPPED</string>
+    <string name="task_stopped_desc">The mission was cancelled safely.</string>
+    <string name="task_stop">STOP</string>
+    <string name="agent_confirmation_title">HML needs your confirmation</string>
+    <string name="agent_confirmation_message">The agent wants to %1$s “%2$s”. This may send, publish, delete, call, purchase, or otherwise change something outside HML. Continue?</string>
+    <string name="agent_confirmation_allow">Allow once</string>
+    <string name="agent_confirmation_stop">Stop</string>
     <string name="task_step_1">Read current screen</string>
     <string name="task_step_2">Plan the next supported action</string>
     <string name="task_step_3">Execute → read again</string>

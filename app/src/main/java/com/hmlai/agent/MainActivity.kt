@@ -87,6 +87,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var taskCard: View
     private lateinit var taskLive: TextView
     private lateinit var taskStatus: TextView
+    private lateinit var taskStopButton: View
+    private var activeTaskRunner: AutonomousTaskRunner? = null
 
     // True = the Home tab is selected. The home screen also shows by itself whenever the
     // conversation is empty, so a fresh chat always opens on Home.
@@ -122,9 +124,12 @@ class MainActivity : AppCompatActivity() {
             ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
             ?.firstOrNull()
         if (!spoken.isNullOrBlank()) {
-            val current = input.text?.toString().orEmpty()
-            input.setText(if (current.isBlank()) spoken else "$current $spoken")
+            // Voice-first: recognized speech is treated as the command itself,
+            // rather than forcing the user to tap Send a second time.
+            input.setText(spoken)
             input.setSelection(input.text?.length ?: 0)
+            handleUserInput(spoken.trim())
+            input.setText("")
         }
     }
 
@@ -165,6 +170,15 @@ class MainActivity : AppCompatActivity() {
         taskCard = findViewById(R.id.taskCard)
         taskLive = findViewById(R.id.taskLive)
         taskStatus = findViewById(R.id.taskStatus)
+        taskStopButton = findViewById(R.id.taskStopButton)
+        taskStopButton.setOnClickListener {
+            activeTaskRunner?.cancel()
+            activeTaskRunner = null
+            taskLive.text = getString(R.string.task_stopped)
+            taskStatus.text = getString(R.string.task_stopped_desc)
+            setTaskSteps(now = 4, allDone = false)
+            mainHandler.postDelayed({ if (!isDestroyed) taskCard.visibility = View.GONE }, 1200)
+        }
 
         attachmentsScroll = findViewById(R.id.attachmentsScroll)
         attachmentsPreview = findViewById(R.id.attachmentsPreview)
@@ -768,6 +782,8 @@ class MainActivity : AppCompatActivity() {
         // list and crash). Every async update below is therefore tied to this conversation id.
         val convId = currentConversationId
 
+        if (handleMemoryCommand(text, convId, thinkingIndex)) return
+
         // Compound commands ("open X and do Y", "control my screen...") are
         // checked FIRST, before the simple device-command patterns — a plain
         // Intent can only ever do ONE simple thing (open an app), so if the
@@ -841,13 +857,9 @@ class MainActivity : AppCompatActivity() {
     private fun startAutonomousTask(goal: String, thinkingIndex: Int, convId: String) {
         if (!HmlAccessibilityService.isRunning()) {
             val message = if (HmlAccessibilityService.isEnabledInSettings(this)) {
-                // Enabled but the service hasn't finished binding yet —
-                // different, more accurate message than "not turned on".
-                "⏳ Autonomous Control is enabled but still starting up. Give it a " +
-                    "few seconds and try again."
+                "⏳ Autonomous Control is enabled but still starting up. Give it a few seconds and try again."
             } else {
-                "🔒 Autonomous Control isn't turned on yet. Go to Settings > " +
-                    "Accessibility > HML Agent and enable it, then ask me again."
+                "🔒 Autonomous Control isn't turned on yet. Go to Settings > Accessibility > HML Agent and enable it, then ask me again."
             }
             replaceMessage(convId, thinkingIndex, message)
             return
@@ -860,18 +872,60 @@ class MainActivity : AppCompatActivity() {
         val runner = AutonomousTaskRunner(
             context = this,
             onStatusUpdate = { status ->
-                // Status ticks aren't worth a disk write each — only the final result is saved.
                 replaceMessage(convId, thinkingIndex, status, persist = false)
                 OverlayBubble.show(this, status)
                 updateTaskCard(status)
             },
+            onConfirmationRequired = { action, target, resume ->
+                runOnUiThread {
+                    MaterialAlertDialogBuilder(this)
+                        .setTitle(R.string.agent_confirmation_title)
+                        .setMessage(getString(R.string.agent_confirmation_message, action, target))
+                        .setNegativeButton(R.string.agent_confirmation_stop) { _, _ ->
+                            activeTaskRunner?.cancel()
+                        }
+                        .setPositiveButton(R.string.agent_confirmation_allow) { _, _ ->
+                            resume()
+                        }
+                        .setCancelable(false)
+                        .show()
+                }
+            },
             onFinished = { finalMessage ->
                 replaceMessage(convId, thinkingIndex, finalMessage)
                 OverlayBubble.hide(this)
+                activeTaskRunner = null
                 finishTaskCard()
             }
         )
+        activeTaskRunner = runner
         runner.start(goal)
+    }
+
+    private fun handleMemoryCommand(text: String, convId: String, thinkingIndex: Int): Boolean {
+        val normalized = text.trim()
+        val remember = Regex("(?i)^(?:remember that|remember this|save this to memory)\\s+(.+)$").find(normalized)
+        if (remember != null) {
+            val value = remember.groupValues[1].trim()
+            val saved = MemoryStore.add(this, value)
+            replaceMessage(convId, thinkingIndex, if (saved) "Saved to memory." else "I couldn't save that to memory.")
+            return true
+        }
+
+        val forget = Regex("(?i)^(?:forget that|forget this|remove from memory)\\s+(.+)$").find(normalized)
+        if (forget != null) {
+            val removed = MemoryStore.remove(this, forget.groupValues[1])
+            replaceMessage(convId, thinkingIndex, if (removed) "Removed from memory." else "I couldn't find a matching memory.")
+            return true
+        }
+
+        if (Regex("(?i)^(what do you remember|show my memory|what do you know about me)\\??$").matches(normalized)) {
+            val memories = MemoryStore.all(this)
+            val response = if (memories.isEmpty()) "I don't have any explicit memories yet." else "Here’s what I remember:\n\n" + memories.take(12).joinToString("\n") { "• $it" }
+            replaceMessage(convId, thinkingIndex, response)
+            return true
+        }
+        return false
     }
 
     private fun sendToServer(text: String, attachmentNames: List<String>, thinkingIndex: Int, convId: String) {
@@ -918,27 +972,41 @@ class MainActivity : AppCompatActivity() {
             .post(body)
             .build()
 
+        enqueueChatRequest(request, convId, thinkingIndex, attempt = 1)
+    }
+
+    private fun enqueueChatRequest(request: Request, convId: String, thinkingIndex: Int, attempt: Int) {
         client.newCall(request).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
-                mainHandler.post {
-                    replaceMessage(convId, thinkingIndex, "Couldn't reach HML Agent. Check your connection and try again.")
+                if (attempt < 2) {
+                    mainHandler.postDelayed({ enqueueChatRequest(request, convId, thinkingIndex, attempt + 1) }, 800L)
+                } else {
+                    mainHandler.post {
+                        replaceMessage(convId, thinkingIndex, "Couldn't reach HML Agent. Check your connection and try again.")
+                    }
                 }
             }
 
             override fun onResponse(call: Call, response: okhttp3.Response) {
                 val responseBody = response.body?.string()
+                if ((!response.isSuccessful || responseBody == null) && response.code in 500..599 && attempt < 2) {
+                    mainHandler.postDelayed({ enqueueChatRequest(request, convId, thinkingIndex, attempt + 1) }, 800L)
+                    return
+                }
                 mainHandler.post {
                     if (response.isSuccessful && responseBody != null) {
                         try {
                             val answer = JSONObject(responseBody).optString("answer", "")
-                            if (answer.isNotEmpty()) {
-                                replaceMessage(convId, thinkingIndex, answer)
-                            } else {
-                                replaceMessage(convId, thinkingIndex, "HML Agent couldn't answer that right now. Try again shortly.")
-                            }
-                        } catch (e: Exception) {
+                            replaceMessage(
+                                convId,
+                                thinkingIndex,
+                                if (answer.isNotEmpty()) answer else "HML Agent couldn't answer that right now. Try again shortly."
+                            )
+                        } catch (_: Exception) {
                             replaceMessage(convId, thinkingIndex, "Something went wrong reading the response.")
                         }
+                    } else if (response.code == 429) {
+                        replaceMessage(convId, thinkingIndex, "HML Agent is rate-limited right now. Give it a moment and try again.")
                     } else {
                         replaceMessage(convId, thinkingIndex, "HML Agent is busy right now. Try again shortly.")
                     }

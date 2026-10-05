@@ -114,6 +114,14 @@ class HmlAccessibilityService : AccessibilityService() {
             return
         }
 
+        // Privacy guard: do not transmit screenshots while a password/PIN/OTP/card
+        // entry field is visible. The accessibility tree can still be used for
+        // navigation, but the visual frame stays on-device.
+        if (hasSensitiveInputVisible()) {
+            callback(null)
+            return
+        }
+
         try {
             takeScreenshot(
                 android.view.Display.DEFAULT_DISPLAY,
@@ -150,6 +158,35 @@ class HmlAccessibilityService : AccessibilityService() {
         } catch (e: Exception) {
             callback(null)
         }
+    }
+
+    private fun hasSensitiveInputVisible(): Boolean {
+        val root = rootInActiveWindow ?: return false
+        return hasSensitiveInput(root)
+    }
+
+    private fun hasSensitiveInput(node: AccessibilityNodeInfo, depth: Int = 0): Boolean {
+        if (depth > 25) return false
+        if (node.isEditable) {
+            val type = node.inputType
+            val variation = type and android.text.InputType.TYPE_MASK_VARIATION
+            val passwordVariation = variation == android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD ||
+                variation == android.text.InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD ||
+                variation == android.text.InputType.TYPE_TEXT_VARIATION_WEB_PASSWORD ||
+                variation == android.text.InputType.TYPE_NUMBER_VARIATION_PASSWORD
+            val label = listOfNotNull(node.hintText?.toString(), node.text?.toString(), node.contentDescription?.toString())
+                .joinToString(" ").lowercase()
+            val sensitiveLabel = listOf("password", "passcode", "pin", "otp", "verification code", "cvv", "cvc", "card number")
+                .any { label.contains(it) }
+            if (passwordVariation || sensitiveLabel) return true
+        }
+        for (i in 0 until node.childCount) {
+            val child = node.getChild(i) ?: continue
+            val found = hasSensitiveInput(child, depth + 1)
+            child.recycle()
+            if (found) return true
+        }
+        return false
     }
 
     private fun collectElements(node: AccessibilityNodeInfo, out: MutableList<String>, depth: Int = 0) {
