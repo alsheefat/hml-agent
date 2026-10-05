@@ -77,6 +77,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var messageList: RecyclerView
 
     private lateinit var drawerLayout: DrawerLayout
+    private lateinit var drawerPanel: View
     private lateinit var historyAdapter: HistoryAdapter
     private var currentConversationId: String = UUID.randomUUID().toString()
     private var isTemporaryChat = false
@@ -131,7 +132,7 @@ class MainActivity : AppCompatActivity() {
         UserProfileStore.seedDefaultsIfEmpty(this)
 
         drawerLayout = findViewById(R.id.drawerLayout)
-        val drawerPanel = findViewById<View>(R.id.drawerPanel)
+        drawerPanel = findViewById(R.id.drawerPanel)
         messageList = findViewById(R.id.messageList)
         adapter = ChatAdapter(messages)
         messageList.layoutManager = LinearLayoutManager(this)
