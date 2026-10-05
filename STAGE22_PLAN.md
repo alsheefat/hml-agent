@@ -24,3 +24,14 @@ Built additively on the Stage 21 fixed baseline. No Stage 20/21 feature is inten
 - Add Android IME action support for Search/Done/Enter instead of visually manipulating Gboard.
 - Strengthen Messenger/WhatsApp send-control handling and verification path.
 - Keep adaptive recovery, screenshot vision, device context, completion verification and context/follow-up behavior from previous stages.
+
+## Stage 22 UI Polish Patch — Drawer / Header / Composer
+- Fixed conversation-options popup placement so it stays inside the HML drawer and remains compact.
+- Kept Rename, Pin, Share, Add to Home and Delete functionality intact; Delete remains visually separated/red.
+- Fixed edge-to-edge drawer safe areas so the HML header and Guest card no longer hide behind system bars.
+- Replaced the generic hamburger with an HML-styled menu vector.
+- Removed the shared top fade overlay and replaced it with an invisible atmospheric fade behind the header controls, starting at the true top edge.
+- Reworked the composer blur so the blur is clipped to the exact writing-bar bounds; removed the old full-width strip above the keyboard and kept the focused state on the same glass surface.
+- Kept all existing composer controls and behavior unchanged.
+- Corrected Temporary Chat's top-button treatment to preserve the HML blue/white icon colors.
+- No existing feature removed; this patch is UI-only apart from safe-area/positioning behavior.

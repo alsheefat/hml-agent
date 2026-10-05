@@ -131,6 +131,7 @@ class MainActivity : AppCompatActivity() {
         UserProfileStore.seedDefaultsIfEmpty(this)
 
         drawerLayout = findViewById(R.id.drawerLayout)
+        val drawerPanel = findViewById<View>(R.id.drawerPanel)
         messageList = findViewById(R.id.messageList)
         adapter = ChatAdapter(messages)
         messageList.layoutManager = LinearLayoutManager(this)
@@ -217,6 +218,15 @@ class MainActivity : AppCompatActivity() {
                 composerContainer.paddingTop,
                 composerContainer.paddingRight,
                 6 + bottom
+            )
+            // The drawer is edge-to-edge too, but its content must never hide behind
+            // the status/navigation bars. Keep its own visual padding and add only the
+            // system-safe inset on top/bottom so the header and Guest card stay intact.
+            drawerPanel.setPadding(
+                drawerPanel.paddingLeft,
+                dp(18) + bars.top,
+                drawerPanel.paddingRight,
+                dp(18) + bars.bottom
             )
             insets
         }
@@ -397,9 +407,13 @@ class MainActivity : AppCompatActivity() {
         val inflater = LayoutInflater.from(this)
         val popupView = inflater.inflate(R.layout.popup_conversation_options, null)
 
+        // Keep the menu comfortably inside the HML drawer. A drop-down anchored directly
+        // to the ⋮ button can overflow the drawer on narrow phones, which is exactly what
+        // happened on the C53. This is deliberately content-sized, not a giant surface.
+        val popupWidth = dp(188)
         val popupWindow = PopupWindow(
             popupView,
-            ViewGroup.LayoutParams.WRAP_CONTENT,
+            popupWidth,
             ViewGroup.LayoutParams.WRAP_CONTENT,
             true
         )
@@ -433,7 +447,19 @@ class MainActivity : AppCompatActivity() {
             confirmDelete(conversation)
         }
 
-        popupWindow.showAsDropDown(anchor, 0, 8)
+        // Align the popup to the drawer's right-side safe edge instead of the history row's
+        // x-position. This prevents it from crossing into the chat screen.
+        popupView.measure(
+            View.MeasureSpec.makeMeasureSpec(popupWidth, View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+        )
+        val drawerLocation = IntArray(2)
+        val anchorLocation = IntArray(2)
+        drawerPanel.getLocationOnScreen(drawerLocation)
+        anchor.getLocationOnScreen(anchorLocation)
+        val left = drawerLocation[0] + drawerPanel.width - popupWidth - dp(10)
+        val top = anchorLocation[1] + anchor.height + dp(8)
+        popupWindow.showAtLocation(drawerPanel, Gravity.TOP or Gravity.START, left, top)
     }
 
     private fun showRenameDialog(conversation: Conversation) {
