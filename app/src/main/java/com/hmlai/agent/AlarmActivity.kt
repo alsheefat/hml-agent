@@ -25,6 +25,7 @@ import java.util.Locale
 
 class AlarmActivity : AppCompatActivity() {
     private var ringtone: Ringtone? = null
+    private var notificationId: Int = 0
     private var vibrator: Vibrator? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -36,14 +37,14 @@ class AlarmActivity : AppCompatActivity() {
         )
 
         val label = intent.getStringExtra("alarmLabel") ?: "HML Alarm"
-        val notificationId = intent.getIntExtra("alarmNotificationId", label.hashCode())
+        notificationId = intent.getIntExtra("alarmNotificationId", label.hashCode())
         val now = SimpleDateFormat("h:mm a", Locale.getDefault()).format(Date())
 
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
             setPadding(dp(28), dp(32), dp(28), dp(32))
-            setBackgroundColor(ContextCompat.getColor(this@AlarmActivity, R.color.panel_deep))
+            setBackgroundColor(ContextCompat.getColor(this@AlarmActivity, R.color.surface_raised))
         }
 
         val eyebrow = TextView(this).apply {

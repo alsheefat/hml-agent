@@ -274,7 +274,7 @@ class HmlAccessibilityService : AccessibilityService() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return false
         val root = rootInActiveWindow ?: return false
         val field = findEditableNode(root) ?: return false
-        return field.performAction(AccessibilityNodeInfo.ACTION_IME_ENTER)
+        return field.performAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_IME_ENTER.id)
     }
 
     private fun findNodeByText(node: AccessibilityNodeInfo, lowerLabel: String): AccessibilityNodeInfo? {
