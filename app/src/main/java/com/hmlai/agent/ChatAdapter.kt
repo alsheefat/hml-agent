@@ -48,7 +48,7 @@ class ChatAdapter(private val messages: MutableList<ChatMessage>) :
                     holder.attachmentsLabel.visibility = View.GONE
                 }
             }
-            is AgentViewHolder -> holder.text.text = message.text
+            is AgentViewHolder -> holder.text.text = MarkdownRenderer.render(message.text)
         }
     }
 

@@ -74,7 +74,7 @@ class MainActivity : AppCompatActivity() {
 
     private val messages = mutableListOf<ChatMessage>()
     private lateinit var adapter: ChatAdapter
-    private lateinit var messageList: RecyclerView
+    private lateinit var messageList: FadeTopRecyclerView
 
     private lateinit var drawerLayout: DrawerLayout
     private lateinit var drawerPanel: View
@@ -87,7 +87,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var chatHeader: View
     private lateinit var chatTitle: TextView
     private lateinit var composerWrap: View
-    private lateinit var composerBlur: BlurBehindView
+    private lateinit var composerFade: View
+    private lateinit var topBarView: View
     private lateinit var taskCard: View
     private lateinit var taskLive: TextView
     private lateinit var taskStatus: TextView
@@ -137,11 +138,6 @@ class MainActivity : AppCompatActivity() {
         adapter = ChatAdapter(messages)
         messageList.layoutManager = LinearLayoutManager(this)
         messageList.adapter = adapter
-        messageList.addOnScrollListener(object : RecyclerView.OnScrollListener() {
-            override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
-                if (::composerBlur.isInitialized) composerBlur.invalidate()
-            }
-        })
 
         input = findViewById(R.id.messageInput)
         val sendButton = findViewById<ImageButton>(R.id.sendButton)
@@ -160,8 +156,11 @@ class MainActivity : AppCompatActivity() {
         chatHeader = findViewById(R.id.chatHeader)
         chatTitle = findViewById(R.id.chatTitle)
         composerWrap = findViewById(R.id.composerWrap)
-        composerBlur = findViewById(R.id.composerBlur)
-        homeContentView.setOnScrollChangeListener { _, _, _, _, _ -> composerBlur.invalidate() }
+        composerFade = findViewById(R.id.composerFade)
+        topBarView = findViewById(R.id.topBar)
+        // Keep the list's top padding + fade zone matched to the real height of the top
+        // controls (status bar + icons + optional chat title), after every layout pass.
+        messageList.viewTreeObserver.addOnGlobalLayoutListener { updateTopZone() }
         taskCard = findViewById(R.id.taskCard)
         taskLive = findViewById(R.id.taskLive)
         taskStatus = findViewById(R.id.taskStatus)
@@ -182,7 +181,6 @@ class MainActivity : AppCompatActivity() {
         setupAccountRow(accountRow)
         setupCommandChips()
         updateHomeVisibility()
-        composerBlur.setSource(homeContentView)
         requestDevicePermissionsIfNeeded()
 
         sendButton.setOnClickListener {
@@ -217,13 +215,25 @@ class MainActivity : AppCompatActivity() {
             val ime = insets.getInsets(WindowInsetsCompat.Type.ime())
             topBar.setPadding(topBar.paddingLeft, bars.top + 6, topBar.paddingRight, topBar.paddingBottom)
 
-            // Move only the composer. Do not resize/pad the container by the IME height.
-            composerContainer.translationY = if (ime.bottom > 0) -ime.bottom.toFloat() else 0f
+            // Edge-to-edge: the composer must sit ABOVE the system navigation bar. The nav bar
+            // height is constant bottom padding (so layout never jumps); the keyboard only
+            // translates the composer by however much it rises above the nav bar.
+            val navBottom = bars.bottom
+            val wantBottomPad = dp(8) + navBottom
+            if (composerContainer.paddingBottom != wantBottomPad) {
+                composerContainer.setPadding(
+                    composerContainer.paddingLeft, composerContainer.paddingTop,
+                    composerContainer.paddingRight, wantBottomPad
+                )
+            }
+            val lift = (ime.bottom - navBottom).coerceAtLeast(0)
+            composerContainer.translationY = -lift.toFloat()
+            composerFade.translationY = -lift.toFloat()
 
             // Keep the latest message above the keyboard + composer when the IME is open,
             // without translating the chat itself. The view's actual bounds stay put.
             fun updateMessagePadding() {
-                val extra = if (ime.bottom > 0) ime.bottom + composerContainer.height + dp(8) else 0
+                val extra = if (lift > 0) lift + composerContainer.height + dp(8) else 0
                 messageList.setPadding(
                     messageList.paddingLeft,
                     messageList.paddingTop,
@@ -232,7 +242,7 @@ class MainActivity : AppCompatActivity() {
                 )
             }
             updateMessagePadding()
-            if (ime.bottom > 0) composerContainer.post { updateMessagePadding() }
+            if (lift > 0) composerContainer.post { updateMessagePadding() }
 
             // The drawer is edge-to-edge too; only its safe system-bar insets affect its
             // internal padding. The IME must never resize or lift the drawer.
@@ -248,6 +258,24 @@ class MainActivity : AppCompatActivity() {
 
         applyHeadlineGradient()
         updateTemporaryUi()
+    }
+
+    /** Chat content is allowed to scroll under the top controls; it fades out beneath them.
+     * Padding keeps the first message just below the controls when the list is at rest. */
+    private fun updateTopZone() {
+        if (!::messageList.isInitialized || !::topBarView.isInitialized) return
+        val controlsBottom = if (chatHeader.visibility == View.VISIBLE && chatHeader.height > 0)
+            chatHeader.bottom else topBarView.bottom
+        if (controlsBottom <= 0) return
+        val ramp = dp(20)
+        val wantPadTop = controlsBottom + ramp
+        if (messageList.paddingTop != wantPadTop) {
+            messageList.setPadding(
+                messageList.paddingLeft, wantPadTop,
+                messageList.paddingRight, messageList.paddingBottom
+            )
+        }
+        messageList.setFadeZone(controlsBottom - dp(6), controlsBottom + ramp)
     }
 
     /** "HML handles it." — white → sky → blue gradient text, as in the concept's h1 span. */
@@ -750,9 +778,6 @@ class MainActivity : AppCompatActivity() {
         chatTitle.text = if (isTemporaryChat) getString(R.string.temporary_chat_title)
             else messages.firstOrNull { it.isUser }?.text?.take(40)
                 ?: getString(R.string.new_conversation)
-        if (::composerBlur.isInitialized) {
-            composerBlur.setSource(if (showHome) homeContentView else messageList)
-        }
     }
 
     private fun setupAccountRow(accountRow: View) {

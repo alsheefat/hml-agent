@@ -14,91 +14,9 @@
         <!-- The app background itself provides the soft upper glow. There is intentionally
              no full-width header surface here: each top control owns its own rounded surface. -->
 
-        <!-- Quiet, icon-led top bar. -->
-        <LinearLayout
-            android:id="@+id/topBar"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:minHeight="64dp"
-            android:gravity="center_vertical"
-            android:paddingHorizontal="14dp"
-            app:layout_constraintTop_toTopOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintEnd_toEndOf="parent">
-
-            <ImageButton
-                android:id="@+id/menuButton"
-                style="@style/MinimalIconButton"
-                android:src="@drawable/ic_menu_hml"
-                android:contentDescription="@string/recent" />
-
-            <LinearLayout
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_weight="1"
-                android:gravity="center_vertical"
-                android:paddingStart="12dp">
-
-                <ImageView
-                    android:layout_width="30dp"
-                    android:layout_height="30dp"
-                    android:src="@drawable/hml_logo_clean"
-                    android:scaleType="fitCenter"
-                    android:contentDescription="@string/app_name" />
-            </LinearLayout>
-
-            <ImageButton
-                android:id="@+id/temporaryChatButton"
-                style="@style/TopTemporaryButton"
-                android:src="@drawable/ic_temp_hml"
-                android:contentDescription="@string/temporary_chat" />
-
-            <ImageButton
-                android:id="@+id/newChatButton"
-                style="@style/TopNewChatButton"
-                android:layout_marginStart="6dp"
-                android:src="@drawable/ic_new_chat_hml"
-                android:contentDescription="@string/new_chat" />
-        </LinearLayout>
-
-        <!-- Conversation title appears only when it adds context. -->
-        <LinearLayout
-            android:id="@+id/chatHeader"
-            android:layout_width="0dp"
-            android:layout_height="36dp"
-            android:gravity="center_vertical"
-            android:paddingHorizontal="20dp"
-            android:visibility="gone"
-            app:layout_constraintTop_toBottomOf="@id/topBar"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintEnd_toEndOf="parent">
-
-            <TextView
-                android:id="@+id/chatTitle"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:ellipsize="end"
-                android:maxLines="1"
-                android:textColor="@color/text_secondary"
-                android:textSize="12sp"
-                android:fontFamily="sans-serif-medium" />
-
-            <TextView
-                android:id="@+id/temporaryBanner"
-                android:layout_width="wrap_content"
-                android:layout_height="24dp"
-                android:background="@drawable/temp_badge_bg"
-                android:gravity="center"
-                android:paddingHorizontal="8dp"
-                android:text="@string/temporary_badge"
-                android:textColor="@color/blue_glow"
-                android:textSize="8sp"
-                android:fontFamily="monospace"
-                android:visibility="gone" />
-        </LinearLayout>
-
-        <androidx.recyclerview.widget.RecyclerView
+        <!-- Starts at the very top of the screen so chat content scrolls UNDER the top controls.
+             FadeTopRecyclerView fades that content out under the icons (no overlay rectangle). -->
+        <com.hmlai.agent.FadeTopRecyclerView
             android:id="@+id/messageList"
             android:layout_width="0dp"
             android:layout_height="0dp"
@@ -107,7 +25,7 @@
             android:paddingTop="8dp"
             android:paddingBottom="12dp"
             android:visibility="gone"
-            app:layout_constraintTop_toBottomOf="@id/chatHeader"
+            app:layout_constraintTop_toTopOf="parent"
             app:layout_constraintBottom_toTopOf="@id/composerContainer"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent" />
@@ -241,19 +159,104 @@
             </LinearLayout>
         </ScrollView>
 
-        <!-- This entire container is bottom-anchored. With adjustResize it moves with the IME,
-             so the writing bar stays directly above the keyboard instead of being covered. -->
-        <com.hmlai.agent.BlurBehindView
-            android:id="@+id/composerBlur"
+        <!-- Quiet, icon-led top bar. -->
+        <LinearLayout
+            android:id="@+id/topBar"
             android:layout_width="0dp"
-            android:layout_height="140dp"
+            android:layout_height="wrap_content"
+            android:minHeight="64dp"
+            android:gravity="center_vertical"
+            android:paddingHorizontal="14dp"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent">
+
+            <ImageButton
+                android:id="@+id/menuButton"
+                style="@style/MinimalIconButton"
+                android:src="@drawable/ic_menu_hml"
+                android:contentDescription="@string/recent" />
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:gravity="center_vertical"
+                android:paddingStart="12dp">
+
+                <ImageView
+                    android:layout_width="30dp"
+                    android:layout_height="30dp"
+                    android:src="@drawable/hml_logo_clean"
+                    android:scaleType="fitCenter"
+                    android:contentDescription="@string/app_name" />
+            </LinearLayout>
+
+            <ImageButton
+                android:id="@+id/temporaryChatButton"
+                style="@style/TopTemporaryButton"
+                android:src="@drawable/ic_temp_hml"
+                android:contentDescription="@string/temporary_chat" />
+
+            <ImageButton
+                android:id="@+id/newChatButton"
+                style="@style/TopNewChatButton"
+                android:layout_marginStart="6dp"
+                android:src="@drawable/ic_new_chat_hml"
+                android:contentDescription="@string/new_chat" />
+        </LinearLayout>
+
+        <!-- Conversation title appears only when it adds context. -->
+        <LinearLayout
+            android:id="@+id/chatHeader"
+            android:layout_width="0dp"
+            android:layout_height="36dp"
+            android:gravity="center_vertical"
+            android:paddingHorizontal="20dp"
+            android:visibility="gone"
+            app:layout_constraintTop_toBottomOf="@id/topBar"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent">
+
+            <TextView
+                android:id="@+id/chatTitle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textColor="@color/text_secondary"
+                android:textSize="12sp"
+                android:fontFamily="sans-serif-medium" />
+
+            <TextView
+                android:id="@+id/temporaryBanner"
+                android:layout_width="wrap_content"
+                android:layout_height="24dp"
+                android:background="@drawable/temp_badge_bg"
+                android:gravity="center"
+                android:paddingHorizontal="8dp"
+                android:text="@string/temporary_badge"
+                android:textColor="@color/blue_glow"
+                android:textSize="8sp"
+                android:fontFamily="monospace"
+                android:visibility="gone" />
+        </LinearLayout>
+
+        <!-- Soft fade of chat content into the composer area (moves with the composer). -->
+        <View
+            android:id="@+id/composerFade"
+            android:layout_width="0dp"
+            android:layout_height="26dp"
+            android:background="@drawable/composer_top_fade"
             android:clickable="false"
             android:focusable="false"
-            android:visibility="visible"
-            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintBottom_toTopOf="@id/composerContainer"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent" />
 
+        <!-- Bottom-anchored. Solid background so nothing shows through behind/under the bar
+             (including the system navigation bar area, which is added as bottom padding). -->
         <LinearLayout
             android:id="@+id/composerContainer"
             android:layout_width="0dp"
@@ -261,7 +264,7 @@
             android:orientation="vertical"
             android:paddingTop="6dp"
             android:paddingBottom="8dp"
-            android:background="@android:color/transparent"
+            android:background="@color/bg_black"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent">
