@@ -21,7 +21,7 @@ import java.util.regex.Pattern
 
 data class ScheduledCommand(
     val triggerAtMillis: Long,
-    val actionType: String,   // "reminder" or "call"
+    val actionType: String,   // "reminder", "call", or "autonomous"
     val payload: String,      // reminder text, or contact name for a call
     val originalText: String
 )
@@ -55,6 +55,28 @@ object ScheduledActionHandler {
         return null
     }
 
+    /** Detects scheduled autonomous goals such as:
+     * "send ThunderBlitz Group ... on Instagram at 3 pm" or
+     * "play Blinding Lights at 6:30". The complete original sentence is
+     * preserved as the goal so the normal agent can execute it later. */
+    fun tryParseAutonomous(rawText: String): ScheduledCommand? {
+        val text = rawText.trim()
+        val lower = text.lowercase()
+        val timeRegex = Regex("\\b(?:at|for)\\s+(\\d{1,2}(?::\\d{2})?\\s*(?:am|pm)?)\\b(?:\\s+(tomorrow))?", RegexOption.IGNORE_CASE)
+        val match = timeRegex.find(lower) ?: return null
+
+        val actionWords = listOf(
+            "send", "message", "text", "tell", "reply", "dm", "post",
+            "play", "watch", "open", "search", "find", "scroll", "tap",
+            "like", "share", "follow", "upload", "download", "call"
+        )
+        if (actionWords.none { lower.contains(Regex("\\b${Regex.escape(it)}\\b")) }) return null
+
+        val timePart = match.groupValues[1] + if (match.groupValues.getOrNull(2).isNullOrBlank()) "" else " tomorrow"
+        val trigger = parseTimeExpression(timePart) ?: return null
+        return ScheduledCommand(trigger, "autonomous", text, rawText)
+    }
+
     /** Same as tryParse, but if the fast local patterns don't match, asks
      * the server to understand the scheduling intent — covers natural
      * phrasing variation and Bangla ("Abbu ke 6 tay call koro", "amake
@@ -66,6 +88,11 @@ object ScheduledActionHandler {
             callback(localResult)
             return
         }
+        val autonomousLocal = tryParseAutonomous(rawText)
+        if (autonomousLocal != null) {
+            callback(autonomousLocal)
+            return
+        }
 
         classifyViaServer(rawText) { classification ->
             if (classification == null || !classification.isCommand || !classification.isScheduled) {
@@ -73,7 +100,8 @@ object ScheduledActionHandler {
                 return@classifyViaServer
             }
             if (classification.type != "reminder" && classification.type != "call") {
-                callback(null)
+                val autonomous = tryParseAutonomous(rawText)
+                callback(autonomous)
                 return@classifyViaServer
             }
 
@@ -194,6 +222,7 @@ object ScheduledActionHandler {
         // Time + text, not time alone: two reminders set for the same minute used to share a
         // request code, so the second silently replaced the first.
         val requestCode = (command.triggerAtMillis.toString() + command.actionType + command.payload).hashCode()
+        if (command.actionType == "autonomous") intent.putExtra("taskId", requestCode.toString())
         val pendingIntent = PendingIntent.getBroadcast(
             context,
             requestCode,
@@ -222,6 +251,11 @@ object ScheduledActionHandler {
         return when (command.actionType) {
             "reminder" -> "⏰ Got it — I'll remind you to \"${command.payload}\" at $timeLabel."
             "call" -> "⏰ Scheduled — I'll call ${command.payload} at $timeLabel."
+            "autonomous" -> {
+                val id = requestCode.toString()
+                ScheduledTaskStore.add(context, PendingTask(id, command.payload, command.triggerAtMillis))
+                "⏰ Scheduled for $timeLabel — I'll execute this task then: \"${command.payload}\""
+            }
             else -> "⏰ Scheduled for $timeLabel."
         }
     }
@@ -242,6 +276,7 @@ object ScheduledActionHandler {
         }
 
         val requestCode = (triggerAtMillis.toString() + "autonomous" + goal).hashCode()
+        intent.putExtra("taskId", requestCode.toString())
         val pendingIntent = PendingIntent.getBroadcast(
             context,
             requestCode,
@@ -267,7 +302,9 @@ object ScheduledActionHandler {
         val minute = calendar.get(Calendar.MINUTE)
         val timeLabel = String.format("%02d:%02d", hour, minute)
 
-        return "⏰ Scheduled for $timeLabel — I'll open a notification at that time to run: \"$goal\". " +
-            "Make sure Autonomous Control is enabled in Accessibility settings before then."
+        val taskId = requestCode.toString()
+        ScheduledTaskStore.add(context, PendingTask(taskId, goal, triggerAtMillis))
+        return "⏰ Scheduled for $timeLabel — I'll execute: \"$goal\". " +
+            "Autonomous Control must be enabled in Accessibility settings."
     }
 }

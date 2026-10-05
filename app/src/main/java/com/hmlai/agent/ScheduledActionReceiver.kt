@@ -22,7 +22,7 @@ class ScheduledActionReceiver : BroadcastReceiver() {
         when (actionType) {
             "reminder" -> showReminderNotification(context, payload)
             "call" -> placeScheduledCall(context, payload)
-            "autonomous" -> launchScheduledAutonomousTask(context, payload)
+            "autonomous" -> launchScheduledAutonomousTask(context, payload, intent.getStringExtra("taskId"))
         }
     }
 
@@ -37,7 +37,8 @@ class ScheduledActionReceiver : BroadcastReceiver() {
      * foreground. Not fully silent, but it's the reliable version of
      * this given Android's real constraints on background gesture
      * automation. */
-    private fun launchScheduledAutonomousTask(context: Context, goal: String) {
+    private fun launchScheduledAutonomousTask(context: Context, goal: String, taskId: String?) {
+        if (!taskId.isNullOrBlank()) ScheduledTaskStore.markRunning(context, taskId)
         val channelId = "hml_agent_autonomous"
         val notificationManager =
             context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -54,6 +55,7 @@ class ScheduledActionReceiver : BroadcastReceiver() {
         val launchIntent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             putExtra(MainActivity.EXTRA_PENDING_AUTONOMOUS_GOAL, goal)
+            if (!taskId.isNullOrBlank()) putExtra(MainActivity.EXTRA_PENDING_AUTONOMOUS_ID, taskId)
         }
         val pendingIntent = android.app.PendingIntent.getActivity(
             context, goal.hashCode(), launchIntent,

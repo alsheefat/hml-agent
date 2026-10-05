@@ -13,6 +13,8 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.OpenableColumns
 import android.speech.RecognizerIntent
+import android.speech.RecognitionListener
+import android.speech.SpeechRecognizer
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -50,6 +52,8 @@ import org.json.JSONObject
 import java.io.IOException
 import java.util.Locale
 import java.util.UUID
+import java.util.regex.Pattern
+import java.util.Calendar
 import java.util.concurrent.TimeUnit
 
 class MainActivity : AppCompatActivity() {
@@ -83,6 +87,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var taskStatus: TextView
     private lateinit var taskStopButton: View
     private var activeTaskRunner: AutonomousTaskRunner? = null
+    private var activeMissionGoal: String? = null
 
     // True = the Home tab is selected. The home screen also shows by itself whenever the
     // conversation is empty, so a fresh chat always opens on Home.
@@ -111,21 +116,8 @@ class MainActivity : AppCompatActivity() {
         ActivityResultContracts.OpenMultipleDocuments()
     ) { uris -> uris.forEach { addAttachment(it) } }
 
-    private val speechLauncher = registerForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        val spoken = result.data
-            ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
-            ?.firstOrNull()
-        if (!spoken.isNullOrBlank()) {
-            // Voice-first: recognized speech is treated as the command itself,
-            // rather than forcing the user to tap Send a second time.
-            input.setText(spoken)
-            input.setSelection(input.text?.length ?: 0)
-            handleUserInput(spoken.trim())
-            input.setText("")
-        }
-    }
+    private var speechRecognizer: SpeechRecognizer? = null
+    private var voiceDialog: AlertDialog? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -148,7 +140,6 @@ class MainActivity : AppCompatActivity() {
         // MainActivity opened, which is what showed "close app" after Sign in Later.
         val attachButton = findViewById<View>(R.id.attachButton)
         val micButton = findViewById<View>(R.id.micButton)
-        val temporaryComposerButton = findViewById<View>(R.id.temporaryComposerButton)
         val drawerNewChat = findViewById<View>(R.id.drawerNewChat)
         val accountRow = findViewById<View>(R.id.accountRow)
         temporaryChatButton = findViewById(R.id.temporaryChatButton)
@@ -195,7 +186,6 @@ class MainActivity : AppCompatActivity() {
         }
 
         micButton.setOnClickListener { startVoiceInput() }
-        temporaryComposerButton.setOnClickListener { startTemporaryChat() }
         // Glass composer picks up the focus border from the concept.
         input.setOnFocusChangeListener { _, hasFocus -> composerWrap.isActivated = hasFocus }
 
@@ -284,7 +274,8 @@ class MainActivity : AppCompatActivity() {
             Manifest.permission.CALL_PHONE,
             Manifest.permission.READ_CONTACTS,
             Manifest.permission.CAMERA,
-            Manifest.permission.SEND_SMS
+            Manifest.permission.SEND_SMS,
+            Manifest.permission.RECORD_AUDIO
         )
         // Android 13+ never shows reminder notifications unless this is granted at runtime.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -365,7 +356,9 @@ class MainActivity : AppCompatActivity() {
         // ScheduledActionReceiver) — run the task now that we're in the
         // foreground with a live window Accessibility Service can act on.
         val pendingGoal = intent.getStringExtra(EXTRA_PENDING_AUTONOMOUS_GOAL)
+        val pendingId = intent.getStringExtra(EXTRA_PENDING_AUTONOMOUS_ID)
         intent.removeExtra(EXTRA_PENDING_AUTONOMOUS_GOAL)
+        intent.removeExtra(EXTRA_PENDING_AUTONOMOUS_ID)
         pendingGoal?.let { goal ->
             adapter.addMessage(ChatMessage("⏰ Running scheduled task: $goal", isUser = false))
             forceHome = false
@@ -373,7 +366,7 @@ class MainActivity : AppCompatActivity() {
             scrollToBottom()
             adapter.addMessage(ChatMessage("…", isUser = false))
             scrollToBottom()
-            startAutonomousTask(goal, messages.size - 1, currentConversationId)
+            startAutonomousTask(goal, messages.size - 1, currentConversationId, pendingId)
         }
     }
 
@@ -431,14 +424,19 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showRenameDialog(conversation: Conversation) {
-        val padding = (16 * resources.displayMetrics.density).toInt()
         val editText = EditText(this).apply {
             setText(conversation.title)
             setSelection(text.length)
-            setPadding(padding, padding / 2, padding, padding / 2)
+            singleLine = true
+            hint = getString(R.string.rename_conversation)
+            background = ContextCompat.getDrawable(this@MainActivity, R.drawable.rename_field_bg)
+            setTextColor(ContextCompat.getColor(this@MainActivity, R.color.text_primary))
+            setHintTextColor(ContextCompat.getColor(this@MainActivity, R.color.text_muted))
+            setPadding(14, 0, 14, 0)
         }
         MaterialAlertDialogBuilder(this)
             .setTitle(R.string.rename_conversation)
+            .setMessage("Give this conversation a short name.")
             .setView(editText)
             .setPositiveButton(R.string.save) { _, _ ->
                 val newTitle = editText.text.toString().trim()
@@ -631,6 +629,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun startNewChat() {
+        activeTaskRunner?.cancel()
+        activeTaskRunner = null
+        activeMissionGoal = null
         persistCurrentConversation()
         currentConversationId = UUID.randomUUID().toString()
         isTemporaryChat = false
@@ -660,7 +661,6 @@ class MainActivity : AppCompatActivity() {
         val active = ContextCompat.getColor(this, R.color.blue_glow)
         temporaryChatButton.isActivated = isTemporaryChat
         temporaryChatButton.alpha = if (isTemporaryChat) 1f else 0.68f
-        findViewById<View>(R.id.temporaryComposerButton)?.alpha = if (isTemporaryChat) 1f else 0.62f
         updateHomeVisibility()
     }
 
@@ -719,16 +719,71 @@ class MainActivity : AppCompatActivity() {
 
     // ---------------------------------------------------------------- voice input
 
+    /** HML-owned voice UI. Android's SpeechRecognizer supplies recognition, but
+     * the user never gets thrown into Google's separate voice screen. */
     private fun startVoiceInput() {
-        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            putExtra(RecognizerIntent.EXTRA_PROMPT, getString(R.string.voice_input))
+        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            Toast.makeText(this, "HML needs microphone permission for voice commands.", Toast.LENGTH_SHORT).show()
+            permissionLauncher.launch(arrayOf(Manifest.permission.RECORD_AUDIO))
+            return
         }
-        if (intent.resolveActivity(packageManager) != null) {
-            speechLauncher.launch(intent)
-        } else {
-            Toast.makeText(this, "No speech recognition app found on this device.", Toast.LENGTH_SHORT).show()
+        if (!SpeechRecognizer.isRecognitionAvailable(this)) {
+            Toast.makeText(this, getString(R.string.no_speech_app), Toast.LENGTH_SHORT).show()
+            return
         }
+
+        val message = TextView(this).apply {
+            text = getString(R.string.voice_listening)
+            setTextColor(ContextCompat.getColor(this@MainActivity, R.color.text_secondary))
+            textSize = 14f
+            setPadding(20, 4, 20, 12)
+        }
+        val dialog = MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.voice_input)
+            .setView(message)
+            .setNegativeButton(R.string.voice_cancel) { _, _ -> stopVoiceInput() }
+            .setPositiveButton(R.string.voice_done) { _, _ -> stopVoiceInput() }
+            .create()
+        voiceDialog = dialog
+        dialog.setOnDismissListener { speechRecognizer?.cancel(); speechRecognizer?.destroy(); speechRecognizer = null; voiceDialog = null }
+        dialog.show()
+
+        speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this).also { recognizer ->
+            recognizer.setRecognitionListener(object : RecognitionListener {
+                override fun onReadyForSpeech(params: Bundle?) { message.text = getString(R.string.voice_listening) }
+                override fun onBeginningOfSpeech() { message.text = getString(R.string.voice_hearing) }
+                override fun onRmsChanged(rmsdB: Float) {}
+                override fun onBufferReceived(buffer: ByteArray?) {}
+                override fun onEndOfSpeech() { message.text = getString(R.string.voice_processing) }
+                override fun onError(error: Int) { message.text = getString(R.string.voice_error) }
+                override fun onResults(results: Bundle?) {
+                    val spoken = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()
+                    if (!spoken.isNullOrBlank()) {
+                        dialog.dismiss()
+                        input.setText(spoken)
+                        input.setSelection(input.text?.length ?: 0)
+                        handleUserInput(spoken.trim())
+                        input.setText("")
+                    }
+                }
+                override fun onPartialResults(partialResults: Bundle?) {
+                    val partial = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()
+                    if (!partial.isNullOrBlank()) message.text = partial
+                }
+                override fun onEvent(eventType: Int, params: Bundle?) {}
+            })
+            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+            }
+            recognizer.startListening(intent)
+        }
+    }
+
+    private fun stopVoiceInput() {
+        speechRecognizer?.cancel()
+        speechRecognizer?.destroy()
+        speechRecognizer = null
     }
 
     // ---------------------------------------------------------------- sending
@@ -743,7 +798,8 @@ class MainActivity : AppCompatActivity() {
      * genuinely NOT a command does it get sent to the AI server as chat. */
     private fun handleUserInput(text: String) {
         UserProfileStore.maybeLearnNameFrom(this, text)
-        val attachmentNames = pendingAttachments.map { queryFileName(it) }
+        val attachmentUris = pendingAttachments.toList()
+        val attachmentNames = attachmentUris.map { queryFileName(it) }
         adapter.addMessage(ChatMessage(text, isUser = true, attachments = attachmentNames))
         forceHome = false
         updateHomeVisibility()
@@ -764,6 +820,34 @@ class MainActivity : AppCompatActivity() {
         // a reply lands, thinkingIndex would point at the WRONG message (or past the end of the
         // list and crash). Every async update below is therefore tied to this conversation id.
         val convId = currentConversationId
+
+        // Mission control is deliberately local and instant. HML should never need
+        // a network round-trip to understand “stop”, and a follow-up must stay tied
+        // to the previous mission instead of becoming a disconnected chat turn.
+        val normalized = text.trim().lowercase()
+        if (activeTaskRunner != null && normalized.matches(Regex("^(stop|cancel|abort|never mind|nevermind)$"))) {
+            activeTaskRunner?.cancel()
+            activeTaskRunner = null
+            activeMissionGoal = null
+            replaceMessage(convId, thinkingIndex, "Stopped. I left the current screen unchanged.")
+            return
+        }
+
+        if (activeTaskRunner != null && normalized.matches(Regex("^(change|instead|actually)\\s+.+"))) {
+            activeTaskRunner?.cancel()
+            activeTaskRunner = null
+            activeMissionGoal = null
+            startAutonomousTask("Continue with this corrected goal: $text", thinkingIndex, convId)
+            return
+        }
+
+        if (isContextualMissionFollowUp(normalized)) {
+            val previous = activeMissionGoal ?: SkillStore.getLastGoal(this)
+            if (!previous.isNullOrBlank()) {
+                startAutonomousTask("Previous goal: $previous\nUser follow-up/correction: $text", thinkingIndex, convId)
+                return
+            }
+        }
 
         if (handleMemoryCommand(text, convId, thinkingIndex)) return
 
@@ -810,33 +894,34 @@ class MainActivity : AppCompatActivity() {
                     return@tryHandleWithAiFallback
                 }
 
-                sendToServer(text, attachmentNames, thinkingIndex, convId)
+                sendToServer(text, attachmentUris, attachmentNames, thinkingIndex, convId)
             }
         }
     }
 
     private fun isAutonomousControlRequest(text: String): Boolean {
-        val t = text.lowercase()
+        val t = text.trim().lowercase()
 
-        // Explicit autonomy phrases.
         val explicitTriggers = listOf(
             "control my screen", "control the screen", "take control",
             "do this for me on", "automate", "autonomously"
         )
         if (explicitTriggers.any { t.contains(it) }) return true
 
-        // Any "open X and <anything else>" is a COMPOUND command — a plain
-        // Intent can only ever do one simple thing (just open an app), so
-        // if there's a second action chained on with "and"/"then", it
-        // needs the full autonomous screen-control loop to actually carry
-        // out that second part, regardless of which specific verb is used
-        // ("say", "play", "tap", "send" — anything). Previously this only
-        // matched a fixed short list of verbs, so most real compound
-        // requests silently fell through as if they were simple app-opens.
-        val compoundPattern = Regex("^(open|launch)\\s+.+?\\s+(and|then)\\s+.+")
-        if (compoundPattern.containsMatchIn(t)) return true
+        // Real-world goals that require opening an app and then continuing inside it.
+        val actionTriggers = listOf(
+            "play ", "watch ", "send ", "message ", "text ", "tell ", "reply ",
+            "dm ", "post ", "search youtube", "find on youtube", "scroll to ",
+            "tap ", "share ", "follow ", "upload ", "download "
+        )
+        if (actionTriggers.any { t.contains(it) }) return true
 
-        return false
+        val appTargets = listOf("instagram", "whatsapp", "telegram", "facebook", "youtube", "messenger")
+        val appActionWords = listOf("send", "message", "open", "play", "watch", "search", "find", "post", "reply", "tell")
+        if (appTargets.any { t.contains(it) } && appActionWords.any { t.contains(it) }) return true
+
+        val compoundPattern = Regex("^(open|launch)\\s+.+?\\s+(and|then)\\s+.+")
+        return compoundPattern.containsMatchIn(t)
     }
 
     private fun handleSkillCommand(text: String, convId: String, thinkingIndex: Int): Boolean {
@@ -880,8 +965,9 @@ class MainActivity : AppCompatActivity() {
         return false
     }
 
-    private fun startAutonomousTask(goal: String, thinkingIndex: Int, convId: String) {
+    private fun startAutonomousTask(goal: String, thinkingIndex: Int, convId: String, scheduledTaskId: String? = null) {
         SkillStore.setLastGoal(this, goal)
+        activeMissionGoal = goal
         if (!HmlAccessibilityService.isRunning()) {
             val message = if (HmlAccessibilityService.isEnabledInSettings(this)) {
                 "⏳ Autonomous Control is enabled but still starting up. Give it a few seconds and try again."
@@ -921,8 +1007,16 @@ class MainActivity : AppCompatActivity() {
             onFinished = { finalMessage ->
                 SkillStore.setLastGoal(this, goal)
                 replaceMessage(convId, thinkingIndex, finalMessage)
+                if (!scheduledTaskId.isNullOrBlank()) {
+                    if (finalMessage.contains("couldn't", true) || finalMessage.contains("stopped", true) || finalMessage.contains("failed", true)) {
+                        ScheduledTaskStore.markFailed(this, scheduledTaskId)
+                    } else {
+                        ScheduledTaskStore.markFinished(this, scheduledTaskId)
+                    }
+                }
                 OverlayBubble.hide(this)
                 activeTaskRunner = null
+                activeMissionGoal = null
                 finishTaskCard()
             }
         )
@@ -956,16 +1050,15 @@ class MainActivity : AppCompatActivity() {
         return false
     }
 
-    private fun sendToServer(text: String, attachmentNames: List<String>, thinkingIndex: Int, convId: String) {
-        // The user moved to another chat while the command check was running — don't send
-        // this chat's history from the wrong conversation.
+    private fun sendToServer(
+        text: String,
+        attachmentUris: List<Uri>,
+        attachmentNames: List<String>,
+        thinkingIndex: Int,
+        convId: String
+    ) {
         if (convId != currentConversationId || thinkingIndex !in messages.indices) return
 
-        // The full conversation so far (excluding the "…" placeholder at
-        // thinkingIndex) so the backend can give the model real context
-        // instead of treating every message as a fresh, memory-less
-        // exchange. hml-agent-server needs to actually read this array
-        // and pass it through as prior turns.
         val historyArray = JSONArray()
         for ((index, m) in messages.withIndex()) {
             if (index == thinkingIndex) continue
@@ -975,32 +1068,61 @@ class MainActivity : AppCompatActivity() {
             })
         }
 
-        // Small persistent memory of who the user is. hml-agent-server needs to
-        // fold this into the model's system prompt for it to actually change
-        // what the AI says — sending it alone doesn't do that on its own.
         val profile = JSONObject().apply {
             put("name_en", UserProfileStore.getNameEn(this@MainActivity))
             put("name_bn", UserProfileStore.getNameBn(this@MainActivity))
             put("notes", UserProfileStore.getNotes(this@MainActivity))
         }
 
+        // Real multimodal transport: send the actual bytes, not just the filename.
+        // The backend can now pass `images`/`attachments` into Gemini's multimodal
+        // content parts. Text-only servers can safely ignore these extra fields.
+        val encoded = attachmentUris.mapNotNull { AttachmentEncoder.encode(contentResolver, it) }
+        val attachmentArray = JSONArray()
+        encoded.forEach { a ->
+            attachmentArray.put(JSONObject().apply {
+                put("name", a.name)
+                put("mime_type", a.mimeType)
+                put("data", a.dataBase64)
+                if (!a.originalMimeType.isNullOrBlank()) put("original_mime_type", a.originalMimeType)
+            })
+        }
+
         val json = JSONObject().apply {
             put("message", text)
-            // NOTE: the server at `serverUrl` only needs to read this if it wants to
-            // acknowledge/process attachments — today it's sent as filenames only.
-            // Wire up real file upload (e.g. multipart or base64 content) once the
-            // backend has an endpoint that accepts it.
-            put("attachments", JSONArray(attachmentNames))
+            put("attachments", attachmentArray)
+            put("images", attachmentArray)
+            put("attachment_names", JSONArray(attachmentNames))
             put("history", historyArray)
             put("profile", profile)
+            put("agent_context", JSONObject().apply {
+                put("mode", "natural_autonomous_agent")
+                put("last_goal", SkillStore.getLastGoal(this@MainActivity) ?: "")
+                put("active_goal", activeMissionGoal ?: "")
+                put("memories", JSONArray(MemoryStore.all(this@MainActivity).take(20)))
+                put("capabilities", JSONArray(listOf(
+                    "conversation", "context_followups", "memory", "scheduled_tasks",
+                    "screen_control", "accessibility", "screenshot_vision", "multimodal_attachments",
+                    "youtube_first_for_music", "cross_app_missions", "recovery", "verification"
+                )))
+                put("behavior", "React naturally to emotion and context. Distinguish conversation from commands. Resolve it/that/this/the second one from context. For missions use understand -> plan -> act -> observe -> verify -> recover -> finish. Never invent success.")
+            })
         }.toString()
-        val body = json.toRequestBody("application/json; charset=utf-8".toMediaType())
-        val request = Request.Builder()
-            .url(serverUrl)
-            .post(body)
-            .build()
 
+        val body = json.toRequestBody("application/json; charset=utf-8".toMediaType())
+        val request = Request.Builder().url(serverUrl).post(body).build()
         enqueueChatRequest(request, convId, thinkingIndex, attempt = 1)
+    }
+
+    private fun isContextualMissionFollowUp(text: String): Boolean {
+        val shortFollowUps = listOf(
+            "do it", "do that", "do this", "go ahead", "continue", "keep going",
+            "the second one", "the first one", "the other one", "that one", "this one",
+            "open it", "play it", "watch it", "send it", "try again", "retry",
+            "no, the other one", "not that one"
+        )
+        if (shortFollowUps.contains(text)) return true
+        return text.matches(Regex("^(no|nah|not that|actually|instead|the other|second|first)\\s+.+"))
     }
 
     private fun enqueueChatRequest(request: Request, convId: String, thinkingIndex: Int, attempt: Int) {
@@ -1075,5 +1197,6 @@ class MainActivity : AppCompatActivity() {
         /** Intent extra carrying a compound-command goal to run immediately when
          * the app is launched from a scheduled-autonomous-task notification. */
         const val EXTRA_PENDING_AUTONOMOUS_GOAL = "pending_autonomous_goal"
+        const val EXTRA_PENDING_AUTONOMOUS_ID = "pending_autonomous_id"
     }
 }

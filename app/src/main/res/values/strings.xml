@@ -50,7 +50,13 @@
     <string name="attach_file">Attach file</string>
     <string name="remove_attachment">Remove attachment</string>
     <string name="voice_input">Voice input</string>
-    <string name="no_speech_app">No speech recognition app found on this device.</string>
+    <string name="no_speech_app">No speech recognition service is available on this device.</string>
+    <string name="voice_listening">Listening…</string>
+    <string name="voice_hearing">I’m listening…</string>
+    <string name="voice_processing">Processing…</string>
+    <string name="voice_error">I couldn’t hear that. Try again.</string>
+    <string name="voice_cancel">Cancel</string>
+    <string name="voice_done">Done</string>
 
     <!-- Home / empty-state screen -->
     <string name="home_eyebrow">PERSONAL AI AGENT</string>

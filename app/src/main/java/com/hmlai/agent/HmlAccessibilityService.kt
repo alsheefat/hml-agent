@@ -83,6 +83,33 @@ class HmlAccessibilityService : AccessibilityService() {
     override fun onInterrupt() {}
 
     // ============================================================
+    // APP LAUNCHING
+    // ============================================================
+
+    /** Launches an installed user-facing app by its visible label. This is
+     * used as the first step of a larger mission; the agent then takes over
+     * inside that app with the accessibility tree. */
+    fun launchAppByName(appName: String): Boolean {
+        val wanted = appName.trim().lowercase()
+        if (wanted.isEmpty()) return false
+        val pm = packageManager
+        val candidates = pm.getInstalledApplications(android.content.pm.PackageManager.GET_META_DATA)
+            .mapNotNull { app ->
+                val intent = pm.getLaunchIntentForPackage(app.packageName) ?: return@mapNotNull null
+                app to (pm.getApplicationLabel(app).toString() to intent)
+            }
+        val match = candidates.firstOrNull { it.second.first.lowercase() == wanted }
+            ?: candidates.firstOrNull { it.second.first.lowercase().startsWith(wanted) }
+            ?: candidates.firstOrNull { it.second.first.lowercase().contains(wanted) }
+            ?: return false
+        return try {
+            match.second.second.addFlags(Context.FLAG_ACTIVITY_NEW_TASK)
+            startActivity(match.second.second)
+            true
+        } catch (_: Exception) { false }
+    }
+
+    // ============================================================
     // SCREEN READING
     // ============================================================
 

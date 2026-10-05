@@ -59,7 +59,30 @@ class AutonomousTaskRunner(
         cancelled = false
         finished = false
         startedAt = System.currentTimeMillis()
-        step(goal, emptyList())
+        prepareStartingApp(goal)
+    }
+
+    private fun prepareStartingApp(goal: String) {
+        val service = HmlAccessibilityService.instance ?: run {
+            step(goal, emptyList()); return
+        }
+        val lower = goal.lowercase()
+        val target = when {
+            "youtube" in lower || "play " in lower || "watch " in lower || "song" in lower || "music" in lower -> "youtube"
+            "instagram" in lower -> "instagram"
+            "whatsapp" in lower -> "whatsapp"
+            "telegram" in lower -> "telegram"
+            "facebook" in lower -> "facebook"
+            "messenger" in lower -> "messenger"
+            else -> null
+        }
+        if (target != null) {
+            onStatusUpdate("Opening $target")
+            service.launchAppByName(target)
+            mainHandler.postDelayed({ if (!cancelled && !finished) step(goal, listOf("Opened $target as the mission starting point.")) }, 1200)
+        } else {
+            step(goal, emptyList())
+        }
     }
 
     fun cancel() {
@@ -173,6 +196,19 @@ class AutonomousTaskRunner(
                         val reasoning = result.optString("reasoning", "")
 
                         when (action) {
+                            "launch_app", "open_app", "open" -> {
+                                val app = target.ifBlank { reasoning }
+                                onStatusUpdate("Opening · $app")
+                                val ok = service.launchAppByName(app)
+                                recordOutcomeAndContinue(goal, history, if (ok) "Opened $app" else "Couldn't open $app", ok, 1200)
+                            }
+                            "wait", "sleep" -> {
+                                val delay = target.toLongOrNull()?.coerceIn(300L, 5000L) ?: 1000L
+                                onStatusUpdate("Waiting · ${delay}ms")
+                                mainHandler.postDelayed({
+                                    if (!cancelled && !finished) step(goal, history + "Waited ${delay}ms")
+                                }, delay)
+                            }
                             "tap" -> {
                                 if (isSensitiveTarget(target)) {
                                     onStatusUpdate("Waiting for confirmation · $target")
@@ -207,6 +243,12 @@ class AutonomousTaskRunner(
                                 onStatusUpdate("Going back")
                                 val ok = service.goBack()
                                 recordOutcomeAndContinue(goal, history, "Went back${if (!ok) " but Android rejected the action" else ""}", ok, 700)
+                            }
+                            "verify", "observe" -> {
+                                onStatusUpdate("Verifying the result")
+                                mainHandler.postDelayed({
+                                    if (!cancelled && !finished) step(goal, history + "Verification pass requested by planner")
+                                }, 500)
                             }
                             "done" -> finishOnce(reasoning.ifEmpty { "Done." })
                             else -> finishOnce("I wasn't sure how to continue this task safely, so I stopped.")
