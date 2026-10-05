@@ -11,17 +11,10 @@ android {
         applicationId = "com.hmlai.agent"
         minSdk = 26
         targetSdk = 34
-        versionCode = 22
+        versionCode = 23
         versionName = "1.5"
     }
 
-    androidComponents {
-        onVariants { variant ->
-            variant.outputs.forEach { output ->
-                output.outputFileName.set("HML-Agent-v1.5.apk")
-            }
-        }
-    }
 
     signingConfigs {
         getByName("debug") {
@@ -52,6 +45,17 @@ android {
 
     buildFeatures {
         viewBinding = true
+    }
+}
+
+// Keep the installed application name unchanged, but give the CI-built APK
+// the stable product filename requested by the project. This avoids relying
+// on an AGP-internal outputFileName API that does not exist in AGP 8.6.1.
+tasks.named("assembleDebug").configure {
+    doLast {
+        val source = layout.buildDirectory.file("outputs/apk/debug/app-debug.apk").get().asFile
+        val named = layout.buildDirectory.file("outputs/apk/debug/HML-Agent-v1.5.apk").get().asFile
+        if (source.exists()) source.copyTo(named, overwrite = true)
     }
 }
 

@@ -3,57 +3,38 @@ package com.hmlai.agent
 import android.content.Context
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.File
+import java.util.UUID
 
 /**
- * Very small local store for past conversations, backed by SharedPreferences.
- * Good enough for "recent chats" in the drawer without needing a database or
- * a server-side session concept — everything lives on-device.
+ * Durable local conversation store.
+ *
+ * Stage 23 keeps the old SharedPreferences format as a migration source, but
+ * stores each conversation in its own JSON file from now on. This avoids one
+ * growing SharedPreferences blob taking the whole history down when chats get
+ * long, and makes writes atomic per conversation.
  */
 object ConversationStore {
     private const val PREFS = "hml_agent_conversations"
     private const val KEY = "conversations"
-    private const val MAX_SAVED = 50
+    private const val MIGRATED_KEY = "file_store_migrated_v1"
+    private const val MAX_SAVED = 100
+
+    private fun dir(context: Context): File = File(context.filesDir, "hml_conversations").apply { mkdirs() }
 
     fun loadAll(context: Context): MutableList<Conversation> {
-        val raw = prefs(context).getString(KEY, null) ?: return mutableListOf()
+        migrateLegacyIfNeeded(context)
         val result = mutableListOf<Conversation>()
-        // loadAll() runs while MainActivity is opening. One corrupted/legacy entry used to
-        // throw a JSONException here and crash the whole app on launch, so each conversation
-        // is parsed on its own and a bad one is skipped instead of taking everything down.
-        val array = try {
-            JSONArray(raw)
-        } catch (e: Exception) {
-            return mutableListOf()
-        }
-        for (i in 0 until array.length()) {
+        val files = dir(context).listFiles { file -> file.isFile && file.extension == "json" } ?: emptyArray()
+        for (file in files) {
             try {
-                val obj = array.getJSONObject(i)
-                val messages = mutableListOf<ChatMessage>()
-                val msgArray = obj.getJSONArray("messages")
-                for (j in 0 until msgArray.length()) {
-                    val m = msgArray.getJSONObject(j)
-                    val attachments = mutableListOf<String>()
-                    m.optJSONArray("attachments")?.let { attArray ->
-                        for (k in 0 until attArray.length()) attachments.add(attArray.getString(k))
-                    }
-                    messages.add(ChatMessage(m.getString("text"), m.getBoolean("isUser"), attachments))
-                }
-                result.add(
-                    Conversation(
-                        id = obj.getString("id"),
-                        title = obj.getString("title"),
-                        messages = messages,
-                        createdAt = obj.optLong("createdAt", System.currentTimeMillis()),
-                        pinned = obj.optBoolean("pinned", false),
-                        customTitle = obj.optBoolean("customTitle", false)
-                    )
-                )
-            } catch (e: Exception) {
-                // Skip just this entry.
+                parseConversation(file.readText(Charsets.UTF_8))?.let(result::add)
+            } catch (_: Exception) {
+                // A single damaged chat must never hide the rest of the history.
             }
         }
-        // Pinned conversations always float to the top; within each group, newest first.
         return result
+            .distinctBy { it.id }
             .sortedWith(compareByDescending<Conversation> { it.pinned }.thenByDescending { it.createdAt })
             .toMutableList()
     }
@@ -61,69 +42,125 @@ object ConversationStore {
     fun get(context: Context, id: String): Conversation? =
         loadAll(context).find { it.id == id }
 
-    /**
-     * Upserts a conversation by id. Empty conversations are not persisted.
-     * Preserves an existing `pinned`/`customTitle` state (and the custom title
-     * itself) so that auto-saving new messages never silently un-pins a
-     * conversation or clobbers a title the user set by hand.
-     */
     fun save(context: Context, conversation: Conversation) {
         if (conversation.messages.isEmpty()) return
-        val existing = loadAll(context)
-        val previous = existing.find { it.id == conversation.id }
+        migrateLegacyIfNeeded(context)
+
+        val previous = get(context, conversation.id)
         val merged = conversation.copy(
             title = if (previous?.customTitle == true) previous.title else conversation.title,
             pinned = previous?.pinned ?: conversation.pinned,
-            customTitle = previous?.customTitle ?: conversation.customTitle
+            customTitle = previous?.customTitle ?: conversation.customTitle,
+            createdAt = previous?.createdAt ?: conversation.createdAt
         )
-        val all = existing.filterNot { it.id == merged.id }.toMutableList()
-        all.add(0, merged)
-        persist(context, all.take(MAX_SAVED))
+        writeAtomic(context, merged)
+        trimOldConversations(context)
     }
 
     fun rename(context: Context, id: String, newTitle: String) {
-        val all = loadAll(context)
-        val target = all.find { it.id == id } ?: return
-        target.title = newTitle
+        val target = get(context, id) ?: return
+        target.title = newTitle.trim().ifBlank { target.title }
         target.customTitle = true
-        persist(context, all)
+        writeAtomic(context, target)
     }
 
     fun setPinned(context: Context, id: String, pinned: Boolean) {
-        val all = loadAll(context)
-        val target = all.find { it.id == id } ?: return
+        val target = get(context, id) ?: return
         target.pinned = pinned
-        persist(context, all)
+        writeAtomic(context, target)
     }
 
     fun delete(context: Context, id: String) {
-        val all = loadAll(context).filterNot { it.id == id }
-        persist(context, all)
+        File(dir(context), safeName(id)).delete()
     }
 
-    private fun persist(context: Context, conversations: List<Conversation>) {
-        val array = JSONArray()
-        for (c in conversations) {
-            val obj = JSONObject()
-            obj.put("id", c.id)
-            obj.put("title", c.title)
-            obj.put("createdAt", c.createdAt)
-            obj.put("pinned", c.pinned)
-            obj.put("customTitle", c.customTitle)
-            val msgArray = JSONArray()
-            for (m in c.messages) {
-                val mObj = JSONObject()
-                mObj.put("text", m.text)
-                mObj.put("isUser", m.isUser)
-                mObj.put("attachments", JSONArray(m.attachments))
-                msgArray.put(mObj)
-            }
-            obj.put("messages", msgArray)
-            array.put(obj)
+    private fun migrateLegacyIfNeeded(context: Context) {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val targetDir = dir(context)
+        val hasFiles = targetDir.listFiles { file -> file.isFile && file.extension == "json" }?.isNotEmpty() == true
+        if (prefs.getBoolean(MIGRATED_KEY, false) || hasFiles) return
+
+        val raw = prefs.getString(KEY, null) ?: run {
+            prefs.edit().putBoolean(MIGRATED_KEY, true).commit()
+            return
         }
-        prefs(context).edit().putString(KEY, array.toString()).apply()
+        val array = try { JSONArray(raw) } catch (_: Exception) { return }
+        var imported = 0
+        for (i in 0 until array.length()) {
+            try {
+                val conversation = parseConversation(array.getJSONObject(i).toString()) ?: continue
+                writeAtomic(context, conversation)
+                imported++
+            } catch (_: Exception) {
+                // Preserve the rest of the legacy history even if one old record is bad.
+            }
+        }
+        // Only mark migration complete after the import has actually been attempted.
+        if (imported > 0 || array.length() == 0) {
+            prefs.edit().putBoolean(MIGRATED_KEY, true).commit()
+        }
     }
 
-    private fun prefs(context: Context) =
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+    private fun parseConversation(raw: String): Conversation? {
+        val obj = JSONObject(raw)
+        val id = obj.optString("id").ifBlank { return null }
+        val title = obj.optString("title").ifBlank { "Conversation" }
+        val messages = mutableListOf<ChatMessage>()
+        val msgArray = obj.optJSONArray("messages") ?: JSONArray()
+        for (j in 0 until msgArray.length()) {
+            val m = msgArray.optJSONObject(j) ?: continue
+            val text = m.optString("text", "")
+            val attachments = mutableListOf<String>()
+            m.optJSONArray("attachments")?.let { attArray ->
+                for (k in 0 until attArray.length()) {
+                    attachments.add(attArray.optString(k).orEmpty())
+                }
+            }
+            messages.add(ChatMessage(text, m.optBoolean("isUser", false), attachments))
+        }
+        if (messages.isEmpty()) return null
+        return Conversation(
+            id = id,
+            title = title,
+            messages = messages,
+            createdAt = obj.optLong("createdAt", System.currentTimeMillis()),
+            pinned = obj.optBoolean("pinned", false),
+            customTitle = obj.optBoolean("customTitle", false)
+        )
+    }
+
+    private fun writeAtomic(context: Context, conversation: Conversation) {
+        val target = File(dir(context), safeName(conversation.id))
+        val temp = File(target.parentFile, ".${target.name}.${UUID.randomUUID()}.tmp")
+        temp.writeText(toJson(conversation).toString(), Charsets.UTF_8)
+        if (!temp.renameTo(target)) {
+            target.writeText(temp.readText(Charsets.UTF_8), Charsets.UTF_8)
+            temp.delete()
+        }
+    }
+
+    private fun toJson(c: Conversation): JSONObject = JSONObject().apply {
+        put("id", c.id)
+        put("title", c.title)
+        put("createdAt", c.createdAt)
+        put("pinned", c.pinned)
+        put("customTitle", c.customTitle)
+        put("messages", JSONArray().also { arr ->
+            c.messages.forEach { m ->
+                arr.put(JSONObject().apply {
+                    put("text", m.text)
+                    put("isUser", m.isUser)
+                    put("attachments", JSONArray(m.attachments))
+                })
+            }
+        })
+    }
+
+    private fun trimOldConversations(context: Context) {
+        val all = loadAll(context)
+        if (all.size <= MAX_SAVED) return
+        all.drop(MAX_SAVED).forEach { File(dir(context), safeName(it.id)).delete() }
+    }
+
+    private fun safeName(id: String): String = id.replace(Regex("[^A-Za-z0-9._-]"), "_") + ".json"
 }

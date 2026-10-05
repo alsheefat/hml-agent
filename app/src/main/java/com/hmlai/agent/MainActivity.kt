@@ -1282,7 +1282,7 @@ class MainActivity : AppCompatActivity() {
                     "screen_control", "accessibility", "screenshot_vision", "multimodal_attachments",
                     "youtube_first_for_music", "cross_app_missions", "recovery", "verification"
                 )))
-                put("behavior", "React naturally to emotion and context. Distinguish conversation from commands. Resolve it/that/this/the second one from context. For missions use understand -> plan -> act -> observe -> verify -> recover -> finish. Never invent success.")
+                put("behavior", "React naturally to emotion and context. For ordinary conversational messages, do not answer like a dry search box: acknowledge, react, or show a small human conversational cue when appropriate. Aim to include a genuine natural reaction in roughly 3 out of every 5 ordinary conversational turns, but never force a reaction into a command, factual lookup, or autonomous mission where it would feel unnatural. Vary the wording; do not repeat canned phrases. Distinguish conversation from commands. Resolve it/that/this/the second one from context. For missions use understand -> plan -> act -> observe -> verify -> recover -> finish. Never invent success.")
             })
         }.toString()
 
