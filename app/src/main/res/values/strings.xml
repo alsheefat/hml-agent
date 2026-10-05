@@ -54,9 +54,9 @@
 
     <!-- Home / empty-state screen -->
     <string name="home_eyebrow">PERSONAL AI AGENT</string>
-    <string name="home_headline_1">Tell it.</string>
-    <string name="home_headline_2">HML handles it.</string>
-    <string name="home_subtitle">Chat, send files, use your voice, schedule reminders, and — when enabled — let HML control your screen for a task.</string>
+    <string name="home_headline_1">Tell HML.</string>
+    <string name="home_headline_2">We'll handle it.</string>
+    <string name="home_subtitle">Chat, automate, send files, or just say what you need.</string>
     <string name="tool_file">File</string>
     <string name="tool_voice">Voice</string>
     <string name="tool_temporary_label">Temporary</string>

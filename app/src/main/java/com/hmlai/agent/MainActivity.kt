@@ -6,7 +6,6 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.LinearGradient
 import android.graphics.PorterDuff
-import android.graphics.Rect
 import android.graphics.Shader
 import android.net.Uri
 import android.os.Build
@@ -35,6 +34,8 @@ import androidx.core.content.pm.ShortcutInfoCompat
 import androidx.core.content.pm.ShortcutManagerCompat
 import androidx.core.graphics.drawable.IconCompat
 import androidx.core.view.GravityCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.drawerlayout.widget.DrawerLayout
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -202,14 +203,16 @@ class MainActivity : AppCompatActivity() {
         // Glass composer picks up the focus border from the concept.
         input.setOnFocusChangeListener { _, hasFocus -> composerWrap.isActivated = hasFocus }
 
-        // The floating nav would sit on top of the keyboard — hide it while typing.
-        drawerLayout.viewTreeObserver.addOnGlobalLayoutListener {
-            val visible = Rect()
-            drawerLayout.getWindowVisibleDisplayFrame(visible)
-            val fullHeight = drawerLayout.rootView.height
-            val keyboardOpen = fullHeight - visible.bottom > fullHeight * 0.15
-            bottomNav.visibility = if (keyboardOpen) View.GONE else View.VISIBLE
+        // IME-aware layout: the composer is bottom-anchored and adjustResize shrinks the
+        // activity above the keyboard. Hide only the optional dock while the IME is visible.
+        // This avoids the old global-layout heuristic, which could lag behind keyboard
+        // animations on OEM keyboards and leave the composer underneath the IME.
+        ViewCompat.setOnApplyWindowInsetsListener(drawerLayout) { _, insets ->
+            val imeVisible = insets.isVisible(WindowInsetsCompat.Type.ime())
+            bottomNav.visibility = if (imeVisible) View.GONE else View.VISIBLE
+            insets
         }
+        ViewCompat.requestApplyInsets(drawerLayout)
 
         applyHeadlineGradient()
         updateTemporaryUi()
