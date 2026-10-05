@@ -241,14 +241,25 @@
             </LinearLayout>
         </ScrollView>
 
-        <!-- Bottom composer. The blur is now clipped to the exact writing-bar bounds: no
-             separate full-width black/blur strip above the keyboard, and no focus-state jump. -->
+        <!-- This entire container is bottom-anchored. With adjustResize it moves with the IME,
+             so the writing bar stays directly above the keyboard instead of being covered. -->
+        <com.hmlai.agent.BlurBehindView
+            android:id="@+id/composerBlur"
+            android:layout_width="0dp"
+            android:layout_height="140dp"
+            android:clickable="false"
+            android:focusable="false"
+            android:visibility="visible"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent" />
+
         <LinearLayout
             android:id="@+id/composerContainer"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:paddingTop="0dp"
+            android:paddingTop="6dp"
             android:paddingBottom="8dp"
             android:background="@android:color/transparent"
             app:layout_constraintBottom_toBottomOf="parent"
@@ -350,27 +361,11 @@
                     android:orientation="horizontal" />
             </HorizontalScrollView>
 
-            <FrameLayout
-                android:id="@+id/composerGlassFrame"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginHorizontal="10dp"
-                android:clipToOutline="true"
-                android:background="@drawable/composer_blur_clip_bg">
-
-                <com.hmlai.agent.BlurBehindView
-                    android:id="@+id/composerBlur"
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:background="@drawable/composer_blur_clip_bg"
-                    android:clipToOutline="true"
-                    android:clickable="false"
-                    android:focusable="false" />
-
             <LinearLayout
                 android:id="@+id/composerWrap"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:layout_marginHorizontal="10dp"
                 android:orientation="horizontal"
                 android:gravity="center_vertical"
                 android:background="@drawable/composer_glass_bg"
@@ -415,7 +410,6 @@
                     android:tint="#FFFFFF"
                     android:contentDescription="@string/send" />
             </LinearLayout>
-            </FrameLayout>
         </LinearLayout>
 
     </androidx.constraintlayout.widget.ConstraintLayout>
