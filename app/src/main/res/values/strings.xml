@@ -10,8 +10,8 @@
          GOOGLE: console.cloud.google.com -> APIs & Services -> Credentials
                  -> create an OAuth 2.0 "Web application" client
                  -> paste its Client ID below (this is the "server client ID" GoogleSignInOptions needs,
-                    even though the app itself is Android — that's how Google's SDK works)
-                 -> also register your app's SHA-1 signing fingerprint in that same console.
+                    even though the app itself is Android — that’s how Google’s SDK works)
+                 -> also register your app’s SHA-1 signing fingerprint in that same console.
 
          FACEBOOK: developers.facebook.com -> My Apps -> your app -> Settings -> Basic
                    -> copy the App ID and Client Token below
@@ -27,11 +27,11 @@
     <string name="continue_with_facebook">Continue with Facebook</string>
     <string name="skip_login">Sign in Later</string>
     <string name="or_divider">OR</string>
-    <string name="login_disclaimer">By continuing, you agree to HML Agent's Terms and Privacy Policy.</string>
+    <string name="login_disclaimer">By continuing, you agree to HML Agent’s Terms and Privacy Policy.</string>
 
     <string name="new_chat">New chat</string>
     <string name="temporary_chat">Temporary chat</string>
-    <string name="temporary_chat_banner">Temporary chat — won't be saved to history</string>
+    <string name="temporary_chat_banner">Temporary chat — won’t be saved to history</string>
     <string name="recent">Recent</string>
     <string name="conversation_options">Conversation options</string>
     <string name="rename_conversation">Rename</string>
@@ -41,8 +41,8 @@
     <string name="share_conversation">Share</string>
     <string name="add_to_home_screen">Shortcut</string>
     <string name="delete_conversation">Delete</string>
-    <string name="delete_conversation_confirm">Delete "%1$s"? This can't be undone.</string>
-    <string name="shortcuts_not_supported">Your launcher doesn't support Home screen shortcuts.</string>
+    <string name="delete_conversation_confirm">Delete "%1$s"? This can’t be undone.</string>
+    <string name="shortcuts_not_supported">Your launcher doesn’t support Home screen shortcuts.</string>
     <string name="your_name_title">What HML calls you</string>
     <string name="your_name_en_hint">Your name (English)</string>
     <string name="your_name_bn_hint">আপনার নাম (বাংলা)</string>
@@ -55,7 +55,7 @@
     <!-- Home / empty-state screen -->
     <string name="home_eyebrow">PERSONAL AI AGENT</string>
     <string name="home_headline_1">Tell HML.</string>
-    <string name="home_headline_2">We'll handle it.</string>
+    <string name="home_headline_2">We’ll handle it.</string>
     <string name="home_subtitle">Chat, automate, send files, or just say what you need.</string>
     <string name="tool_file">File</string>
     <string name="tool_voice">Voice</string>
@@ -88,7 +88,7 @@
     <string name="disclaimer_footer">HML Agent can make mistakes. Check important information.</string>
 
     <!-- Accessibility Service / Autonomous Control -->
-    <string name="accessibility_service_description">Lets HML Agent read what's on your screen and tap, swipe, or type on your behalf when you ask it to control an app for you — for example, "scroll down and tap the third video" or "type this into WhatsApp". It only acts when you explicitly ask it to.</string>
+    <string name="accessibility_service_description">Lets HML Agent read what’s on your screen and tap, swipe, or type on your behalf when you ask it to control an app for you — for example, "scroll down and tap the third video" or "type this into WhatsApp". It only acts when you explicitly ask it to.</string>
     <string name="autonomous_control">Autonomous Control</string>
     <string name="autonomous_control_off">Off — full autonomous control is disabled</string>
     <string name="autonomous_control_on">On — HML Agent can control your screen when asked</string>
