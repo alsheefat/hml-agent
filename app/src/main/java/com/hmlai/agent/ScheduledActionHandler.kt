@@ -21,7 +21,7 @@ import java.util.regex.Pattern
 
 data class ScheduledCommand(
     val triggerAtMillis: Long,
-    val actionType: String,   // "reminder", "call", or "autonomous"
+    val actionType: String,   // "alarm", "reminder", "call", or "autonomous"
     val payload: String,      // reminder text, or contact name for a call
     val originalText: String
 )
@@ -32,10 +32,35 @@ object ScheduledActionHandler {
      * ("remind me to X at 5pm", "call mom at 6:30 tomorrow").
      * Returns null if this doesn't look like a scheduling request. */
     fun tryParse(rawText: String): ScheduledCommand? {
-        val text = rawText.trim().lowercase()
+        val raw = rawText.trim()
+        val text = raw.lowercase()
+
+        // Real alarm: "set alarm at 2:29 and name as Messenger Issue",
+        // "set an alarm for 2:29 called Messenger Issue". Keep the user's
+        // alarm label instead of lowercasing it.
+        val alarmMatch = Regex(
+            "^set\\s+(?:an\\s+)?alarm\\s+(?:at|for)\\s+(.+?)(?:\\s+(?:and\\s+)?(?:name|called|named)\\s+(?:as\\s+)?(.+))$",
+            RegexOption.IGNORE_CASE
+        ).find(raw)
+        if (alarmMatch != null) {
+            val whenText = alarmMatch.groupValues[1].trim()
+            val label = alarmMatch.groupValues[2].trim().trim('\"', '\'')
+            val triggerAt = parseTimeExpression(whenText) ?: return null
+            return ScheduledCommand(triggerAt, "alarm", label.ifBlank { "HML Alarm" }, raw)
+        }
+
+        // Short alarm form: "alarm at 2:29" / "set alarm for 2:29".
+        val shortAlarmMatch = Regex(
+            "^(?:set\\s+)?alarm\\s+(?:at|for)\\s+(.+)$",
+            RegexOption.IGNORE_CASE
+        ).find(raw)
+        if (shortAlarmMatch != null) {
+            val triggerAt = parseTimeExpression(shortAlarmMatch.groupValues[1].trim()) ?: return null
+            return ScheduledCommand(triggerAt, "alarm", "HML Alarm", raw)
+        }
 
         // "remind me to <thing> at <time>"
-        val reminderMatch = Regex("^remind me to (.+?) at (.+)$").find(text)
+        val reminderMatch = Regex("^remind me to (.+?) at (.+)$", RegexOption.IGNORE_CASE).find(raw)
         if (reminderMatch != null) {
             val what = reminderMatch.groupValues[1].trim()
             val whenText = reminderMatch.groupValues[2].trim()
@@ -44,7 +69,7 @@ object ScheduledActionHandler {
         }
 
         // "call <contact> at <time>"
-        val callMatch = Regex("^call (.+?) at (.+)$").find(text)
+        val callMatch = Regex("^call (.+?) at (.+)$", RegexOption.IGNORE_CASE).find(raw)
         if (callMatch != null) {
             val contact = callMatch.groupValues[1].trim()
             val whenText = callMatch.groupValues[2].trim()
@@ -99,7 +124,7 @@ object ScheduledActionHandler {
                 callback(null)
                 return@classifyViaServer
             }
-            if (classification.type != "reminder" && classification.type != "call") {
+            if (classification.type != "reminder" && classification.type != "call" && classification.type != "alarm") {
                 val autonomous = tryParseAutonomous(rawText)
                 callback(autonomous)
                 return@classifyViaServer
@@ -234,11 +259,24 @@ object ScheduledActionHandler {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !alarmManager.canScheduleExactAlarms()) {
                 return "I need \"Schedule exact alarms\" permission to set reminders. Please grant it in app settings."
             }
-            alarmManager.setExactAndAllowWhileIdle(
-                AlarmManager.RTC_WAKEUP,
-                command.triggerAtMillis,
-                pendingIntent
-            )
+            if (command.actionType == "alarm") {
+                val showIntent = PendingIntent.getActivity(
+                    context,
+                    requestCode + 1,
+                    Intent(context, AlarmActivity::class.java),
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+                alarmManager.setAlarmClock(
+                    AlarmManager.AlarmClockInfo(command.triggerAtMillis, showIntent),
+                    pendingIntent
+                )
+            } else {
+                alarmManager.setExactAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP,
+                    command.triggerAtMillis,
+                    pendingIntent
+                )
+            }
         } catch (e: SecurityException) {
             return "I don't have permission to schedule exact alarms. Please grant it in app settings."
         }
@@ -249,7 +287,8 @@ object ScheduledActionHandler {
         val timeLabel = String.format("%02d:%02d", hour, minute)
 
         return when (command.actionType) {
-            "reminder" -> "⏰ Got it — I'll remind you to \"${command.payload}\" at $timeLabel."
+            "alarm" -> "Alarm set — \"${command.payload}\" at $timeLabel."
+            "reminder" -> "Reminder set — \"${command.payload}\" at $timeLabel."
             "call" -> "⏰ Scheduled — I'll call ${command.payload} at $timeLabel."
             "autonomous" -> {
                 val id = requestCode.toString()

@@ -29,10 +29,10 @@
     <string name="or_divider">OR</string>
     <string name="login_disclaimer">By continuing, you agree to HML Agent’s Terms and Privacy Policy.</string>
 
-    <string name="new_chat">New chat</string>
-    <string name="temporary_chat">Temporary chat</string>
-    <string name="temporary_chat_title">Temporary chat</string>
-    <string name="temporary_chat_banner">Temporary chat — won’t be saved to history</string>
+    <string name="new_chat">New Chat</string>
+    <string name="temporary_chat">Temporary Chat</string>
+    <string name="temporary_chat_title">Temporary Chat</string>
+    <string name="temporary_chat_banner">Temporary Chat — won’t be saved to history</string>
     <string name="recent">Recent</string>
     <string name="conversation_options">Conversation options</string>
     <string name="rename_conversation">Rename</string>
@@ -45,7 +45,7 @@
     <string name="delete_conversation_confirm">Delete "%1$s"? This can’t be undone.</string>
     <string name="shortcuts_not_supported">Your launcher doesn’t support Home screen shortcuts.</string>
     <string name="your_name_title">What HML calls you</string>
-    <string name="your_name_en_hint">Your name (English)</string>
+    <string name="your_name_en_hint">Your Name (English)</string>
     <string name="your_name_bn_hint">আপনার নাম (বাংলা)</string>
     <string name="message_hint">Message HML Agent…</string>
     <string name="attach_file">Attach file</string>
@@ -107,7 +107,7 @@
     <string name="nav_history">History</string>
     <string name="status_ready">READY</string>
     <string name="status_local">LOCAL APP</string>
-    <string name="new_conversation">New conversation</string>
+    <string name="new_conversation">New Conversation</string>
     <string name="temporary_badge">TEMP • NOT SAVED</string>
     <string name="task_title">Autonomous task</string>
     <string name="task_ready">READY</string>
@@ -123,6 +123,6 @@
     <string name="task_step_1">Read current screen</string>
     <string name="task_step_2">Plan the next supported action</string>
     <string name="task_step_3">Execute → read again</string>
-    <string name="drawer_new_chat">＋ New chat</string>
+    <string name="drawer_new_chat">＋ New Chat</string>
     <string name="account_subtitle">Profile &amp; Autonomous Control</string>
 </resources>

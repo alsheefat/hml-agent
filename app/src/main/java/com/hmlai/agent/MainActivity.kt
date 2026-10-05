@@ -406,7 +406,7 @@ class MainActivity : AppCompatActivity() {
         popupWindow.elevation = 12f
         popupWindow.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
 
-        val pinLabel = popupView.findViewById<TextView>(R.id.optionPin)
+        val pinLabel = popupView.findViewById<TextView>(R.id.optionPinText)
         pinLabel.text = getString(
             if (conversation.pinned) R.string.unpin_conversation else R.string.pin_conversation
         )

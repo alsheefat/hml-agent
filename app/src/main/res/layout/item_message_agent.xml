@@ -18,6 +18,6 @@
         android:lineSpacingMultiplier="1.2"
         android:textIsSelectable="true"
         android:textCursorDrawable="@null"
-        android:textSize="14sp" />
+        android:textSize="16sp" />
 
 </LinearLayout>

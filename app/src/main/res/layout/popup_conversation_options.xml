@@ -1,81 +1,33 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="104dp"
+    android:layout_width="156dp"
     android:layout_height="wrap_content"
     android:orientation="vertical"
     android:background="@drawable/popup_menu_bg"
     android:paddingVertical="6dp"
     android:elevation="12dp">
 
-    <TextView
-        android:id="@+id/optionRename"
-        android:layout_width="match_parent"
-        android:layout_height="40dp"
-        android:text="Rename"
-        android:textColor="@color/text_primary"
-        android:textSize="13sp"
-        android:gravity="center_vertical"
-        android:paddingHorizontal="13dp"
-        android:background="?attr/selectableItemBackground"
-        android:clickable="true"
-        android:focusable="true" />
+    <LinearLayout android:id="@+id/optionRename" style="@style/ConversationOptionRow">
+        <ImageView style="@style/ConversationOptionIcon" android:src="@drawable/ic_option_rename" />
+        <TextView style="@style/ConversationOptionText" android:text="Rename" />
+    </LinearLayout>
+    <LinearLayout android:id="@+id/optionPin" style="@style/ConversationOptionRow">
+        <ImageView android:id="@+id/optionPinIcon" style="@style/ConversationOptionIcon" android:src="@drawable/ic_option_pin" />
+        <TextView android:id="@+id/optionPinText" style="@style/ConversationOptionText" android:text="Pin" />
+    </LinearLayout>
+    <LinearLayout android:id="@+id/optionShare" style="@style/ConversationOptionRow">
+        <ImageView style="@style/ConversationOptionIcon" android:src="@drawable/ic_option_share" />
+        <TextView style="@style/ConversationOptionText" android:text="Share" />
+    </LinearLayout>
+    <LinearLayout android:id="@+id/optionShortcut" style="@style/ConversationOptionRow">
+        <ImageView style="@style/ConversationOptionIcon" android:src="@drawable/ic_option_home" />
+        <TextView style="@style/ConversationOptionText" android:text="Add to Home" />
+    </LinearLayout>
 
-    <TextView
-        android:id="@+id/optionPin"
-        android:layout_width="match_parent"
-        android:layout_height="40dp"
-        android:text="Pin"
-        android:textColor="@color/text_primary"
-        android:textSize="13sp"
-        android:gravity="center_vertical"
-        android:paddingHorizontal="13dp"
-        android:background="?attr/selectableItemBackground"
-        android:clickable="true"
-        android:focusable="true" />
+    <View android:layout_width="match_parent" android:layout_height="1dp" android:layout_marginHorizontal="12dp" android:background="@color/line" />
 
-    <TextView
-        android:id="@+id/optionShare"
-        android:layout_width="match_parent"
-        android:layout_height="40dp"
-        android:text="Share"
-        android:textColor="@color/text_primary"
-        android:textSize="13sp"
-        android:gravity="center_vertical"
-        android:paddingHorizontal="13dp"
-        android:background="?attr/selectableItemBackground"
-        android:clickable="true"
-        android:focusable="true" />
-
-    <TextView
-        android:id="@+id/optionShortcut"
-        android:layout_width="match_parent"
-        android:layout_height="40dp"
-        android:text="Add to Home"
-        android:textColor="@color/text_primary"
-        android:textSize="13sp"
-        android:gravity="center_vertical"
-        android:paddingHorizontal="13dp"
-        android:background="?attr/selectableItemBackground"
-        android:clickable="true"
-        android:focusable="true" />
-
-    <View
-        android:layout_width="match_parent"
-        android:layout_height="1dp"
-        android:layout_marginHorizontal="12dp"
-        android:background="@color/line" />
-
-    <TextView
-        android:id="@+id/optionDelete"
-        android:layout_width="match_parent"
-        android:layout_height="40dp"
-        android:text="Delete"
-        android:textColor="@color/color_error"
-        android:textSize="13sp"
-        android:gravity="center_vertical"
-        android:paddingHorizontal="13dp"
-        android:background="?attr/selectableItemBackground"
-        android:clickable="true"
-        android:focusable="true" />
-
+    <LinearLayout android:id="@+id/optionDelete" style="@style/ConversationOptionRow">
+        <ImageView style="@style/ConversationOptionIcon" android:src="@drawable/ic_option_delete" />
+        <TextView style="@style/ConversationOptionText" android:text="Delete" android:textColor="@color/color_error" />
+    </LinearLayout>
 </LinearLayout>

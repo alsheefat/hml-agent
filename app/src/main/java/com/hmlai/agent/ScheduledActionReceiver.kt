@@ -20,10 +20,65 @@ class ScheduledActionReceiver : BroadcastReceiver() {
         val payload = intent.getStringExtra("payload") ?: return
 
         when (actionType) {
+            "alarm" -> fireAlarm(context, payload)
             "reminder" -> showReminderNotification(context, payload)
             "call" -> placeScheduledCall(context, payload)
             "autonomous" -> launchScheduledAutonomousTask(context, payload, intent.getStringExtra("taskId"))
         }
+    }
+
+
+    private fun fireAlarm(context: Context, label: String) {
+        val channelId = "hml_agent_alarms_v22"
+        val notificationManager =
+            context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val sound = android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_ALARM)
+            val audio = android.media.AudioAttributes.Builder()
+                .setUsage(android.media.AudioAttributes.USAGE_ALARM)
+                .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .build()
+            val channel = NotificationChannel(channelId, "HML Alarms", NotificationManager.IMPORTANCE_HIGH).apply {
+                setSound(sound, audio)
+                enableVibration(true)
+                vibrationPattern = longArrayOf(0, 700, 350, 700, 350, 1100)
+                lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
+            }
+            notificationManager.createNotificationChannel(channel)
+        }
+
+        val launchIntent = Intent(context, AlarmActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+            putExtra("alarmLabel", label)
+            putExtra("alarmNotificationId", label.hashCode())
+        }
+        val requestCode = label.hashCode()
+        val pendingIntent = android.app.PendingIntent.getActivity(
+            context, requestCode, launchIntent,
+            android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val notification = NotificationCompat.Builder(context, channelId)
+            .setContentTitle("HML Alarm")
+            .setContentText(label)
+            .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
+            .setPriority(NotificationCompat.PRIORITY_MAX)
+            .setCategory(NotificationCompat.CATEGORY_ALARM)
+            .setOngoing(true)
+            .setAutoCancel(false)
+            .setContentIntent(pendingIntent)
+            .setFullScreenIntent(pendingIntent, true)
+            .build()
+
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
+            == PackageManager.PERMISSION_GRANTED || Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU
+        ) {
+            notificationManager.notify(requestCode, notification)
+        }
+
+        // Full-screen alarm notifications are the Android-supported route for an alarm UI.
+        try { context.startActivity(launchIntent) } catch (_: Exception) { }
     }
 
     /** Scheduled autonomous tasks ("at 12:00 AM, open Messenger and say

@@ -250,13 +250,31 @@ class HmlAccessibilityService : AccessibilityService() {
         val root = rootInActiveWindow ?: return false
         val target = findNodeByText(root, label.lowercase())
         if (target != null) {
+            // Prefer the app's accessibility click action. This is more reliable for
+            // Messenger/WhatsApp Send controls than guessing screen coordinates.
+            if (target.isClickable && target.performAction(AccessibilityNodeInfo.ACTION_CLICK)) return true
+            var parent = target.parent
+            var depth = 0
+            while (parent != null && depth < 3) {
+                if (parent.isClickable && parent.performAction(AccessibilityNodeInfo.ACTION_CLICK)) return true
+                parent = parent.parent
+                depth++
+            }
             val bounds = Rect()
             target.getBoundsInScreen(bounds)
-            val centerX = bounds.centerX().toFloat()
-            val centerY = bounds.centerY().toFloat()
-            return performTapAt(centerX, centerY)
+            return performTapAt(bounds.centerX().toFloat(), bounds.centerY().toFloat())
         }
         return false
+    }
+
+    /** Submit the current editable field using Android's IME action instead of
+     * visually tapping Gboard's Search/Done/Enter key. This prevents the keyboard
+     * from being dragged or accidentally entering characters such as "T5". */
+    fun performImeAction(): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return false
+        val root = rootInActiveWindow ?: return false
+        val field = findEditableNode(root) ?: return false
+        return field.performAction(AccessibilityNodeInfo.ACTION_IME_ENTER)
     }
 
     private fun findNodeByText(node: AccessibilityNodeInfo, lowerLabel: String): AccessibilityNodeInfo? {

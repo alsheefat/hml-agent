@@ -174,6 +174,8 @@ class AutonomousTaskRunner(
             put("must_verify_completion", true)
             put("completion_rule", "Do not mark the mission done merely because an intermediate action succeeded. Continue until the user's original goal is visibly achieved on the current screen. For YouTube requests such as playing/watching a latest video, opening YouTube and typing a search query is NOT completion: inspect results, choose the intended latest/relevant result, open it, and verify playback before done.")
             put("device_context", DeviceAwareness.snapshot(context))
+            put("semantic_context", CommandSemantics.parse(goal))
+            put("execution_rules", "Separate entities from modifiers (contact vs carrier, person vs platform, content vs platform). Never include modifiers in the entity name. For search boxes, prefer an IME/search action over visually tapping the software keyboard. For Send actions, use a real clickable node or content description when available, then verify the message appeared before completion.")
             if (screenshotBase64 != null) put("screenshot", screenshotBase64)
         }.toString()
 
@@ -213,6 +215,11 @@ class AutonomousTaskRunner(
                         val reasoning = result.optString("reasoning", "")
 
                         when (action) {
+                            "ime_action", "search", "submit_search", "press_enter" -> {
+                                onStatusUpdate("Submitting the current search")
+                                val ok = service.performImeAction()
+                                recordOutcomeAndContinue(goal, history, if (ok) "Submitted the active field with the Android IME action" else "IME action was unavailable — choose a visible app control instead", ok, 1200)
+                            }
                             "launch_app", "open_app", "open" -> {
                                 val app = target.ifBlank { reasoning }
                                 onStatusUpdate("Opening · $app")
@@ -227,7 +234,16 @@ class AutonomousTaskRunner(
                                 }, delay)
                             }
                             "tap" -> {
-                                if (isSensitiveTarget(target)) {
+                                val tapTarget = target.lowercase()
+                                if (tapTarget.contains("search") || tapTarget == "done" || tapTarget == "enter") {
+                                    onStatusUpdate("Submitting the current search")
+                                    val imeOk = service.performImeAction()
+                                    if (imeOk) {
+                                        recordOutcomeAndContinue(goal, history, "Used the Android IME action instead of tapping the software keyboard", true, 1200)
+                                    } else {
+                                        executeTap(goal, history, target, reasoning, service)
+                                    }
+                                } else if (isSensitiveTarget(target)) {
                                     onStatusUpdate("Waiting for confirmation · $target")
                                     onConfirmationRequired(action, target) {
                                         if (!cancelled && !finished) executeTap(goal, history, target, reasoning, service)
