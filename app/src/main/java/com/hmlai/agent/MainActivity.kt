@@ -5,7 +5,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.LinearGradient
-import android.graphics.PorterDuff
 import android.graphics.Shader
 import android.net.Uri
 import android.os.Build
@@ -34,6 +33,7 @@ import androidx.core.content.pm.ShortcutInfoCompat
 import androidx.core.content.pm.ShortcutManagerCompat
 import androidx.core.graphics.drawable.IconCompat
 import androidx.core.view.GravityCompat
+import androidx.core.view.WindowCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.drawerlayout.widget.DrawerLayout
@@ -78,12 +78,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var chatHeader: View
     private lateinit var chatTitle: TextView
     private lateinit var composerWrap: View
-    private lateinit var bottomNav: View
-    private lateinit var navHome: View
-    private lateinit var navChat: View
-    private lateinit var temporaryPill: View
-    private lateinit var temporaryPillIcon: ImageView
-    private lateinit var temporaryPillLabel: TextView
     private lateinit var taskCard: View
     private lateinit var taskLive: TextView
     private lateinit var taskStatus: TextView
@@ -135,6 +129,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        WindowCompat.setDecorFitsSystemWindows(window, false)
         setContentView(R.layout.activity_main)
         UserProfileStore.seedDefaultsIfEmpty(this)
 
@@ -153,6 +148,7 @@ class MainActivity : AppCompatActivity() {
         // MainActivity opened, which is what showed "close app" after Sign in Later.
         val attachButton = findViewById<View>(R.id.attachButton)
         val micButton = findViewById<View>(R.id.micButton)
+        val temporaryComposerButton = findViewById<View>(R.id.temporaryComposerButton)
         val drawerNewChat = findViewById<View>(R.id.drawerNewChat)
         val accountRow = findViewById<View>(R.id.accountRow)
         temporaryChatButton = findViewById(R.id.temporaryChatButton)
@@ -161,12 +157,6 @@ class MainActivity : AppCompatActivity() {
         chatHeader = findViewById(R.id.chatHeader)
         chatTitle = findViewById(R.id.chatTitle)
         composerWrap = findViewById(R.id.composerWrap)
-        bottomNav = findViewById(R.id.bottomNav)
-        navHome = findViewById(R.id.navHome)
-        navChat = findViewById(R.id.navChat)
-        temporaryPill = findViewById(R.id.temporaryPill)
-        temporaryPillIcon = findViewById(R.id.temporaryPillIcon)
-        temporaryPillLabel = findViewById(R.id.temporaryPillLabel)
         taskCard = findViewById(R.id.taskCard)
         taskLive = findViewById(R.id.taskLive)
         taskStatus = findViewById(R.id.taskStatus)
@@ -205,25 +195,26 @@ class MainActivity : AppCompatActivity() {
         }
 
         micButton.setOnClickListener { startVoiceInput() }
-        temporaryPill.setOnClickListener { startTemporaryChat() }
-
-        // Floating bottom navigation: Home / Chat / History
-        navHome.setOnClickListener { forceHome = true; updateHomeVisibility() }
-        navChat.setOnClickListener { forceHome = false; updateHomeVisibility() }
-        findViewById<View>(R.id.navHistory).setOnClickListener {
-            drawerLayout.openDrawer(GravityCompat.START)
-        }
-
+        temporaryComposerButton.setOnClickListener { startTemporaryChat() }
         // Glass composer picks up the focus border from the concept.
         input.setOnFocusChangeListener { _, hasFocus -> composerWrap.isActivated = hasFocus }
 
-        // IME-aware layout: the composer is bottom-anchored and adjustResize shrinks the
-        // activity above the keyboard. Hide only the optional dock while the IME is visible.
-        // This avoids the old global-layout heuristic, which could lag behind keyboard
-        // animations on OEM keyboards and leave the composer underneath the IME.
+        // Stage 19: take control of system/IME insets explicitly. Android 15 can keep the
+        // window edge-to-edge even when adjustResize is requested, so the old approach could
+        // leave the composer underneath the keyboard on some keyboards/OEM builds.
+        val topBar = findViewById<View>(R.id.topBar)
+        val composerContainer = findViewById<View>(R.id.composerContainer)
         ViewCompat.setOnApplyWindowInsetsListener(drawerLayout) { _, insets ->
-            val imeVisible = insets.isVisible(WindowInsetsCompat.Type.ime())
-            bottomNav.visibility = if (imeVisible) View.GONE else View.VISIBLE
+            val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            val ime = insets.getInsets(WindowInsetsCompat.Type.ime())
+            val bottom = maxOf(bars.bottom, ime.bottom)
+            topBar.setPadding(topBar.paddingLeft, bars.top + 6, topBar.paddingRight, topBar.paddingBottom)
+            composerContainer.setPadding(
+                composerContainer.paddingLeft,
+                composerContainer.paddingTop,
+                composerContainer.paddingRight,
+                6 + bottom
+            )
             insets
         }
         ViewCompat.requestApplyInsets(drawerLayout)
@@ -548,8 +539,6 @@ class MainActivity : AppCompatActivity() {
         chatHeader.visibility = if (!showHome || isTemporaryChat) View.VISIBLE else View.GONE
         chatTitle.text = messages.firstOrNull { it.isUser }?.text?.take(40)
             ?: getString(R.string.new_conversation)
-        navHome.isSelected = showHome
-        navChat.isSelected = !showHome
     }
 
     private fun setupAccountRow(accountRow: View) {
@@ -669,15 +658,9 @@ class MainActivity : AppCompatActivity() {
     private fun updateTemporaryUi() {
         temporaryBanner.visibility = if (isTemporaryChat) View.VISIBLE else View.GONE
         val active = ContextCompat.getColor(this, R.color.blue_glow)
-        temporaryChatButton.setColorFilter(
-            if (isTemporaryChat) active else ContextCompat.getColor(this, R.color.text_icon),
-            PorterDuff.Mode.SRC_IN
-        )
         temporaryChatButton.isActivated = isTemporaryChat
-        temporaryPill.isActivated = isTemporaryChat
-        val toolColor = if (isTemporaryChat) active else ContextCompat.getColor(this, R.color.text_tool)
-        temporaryPillIcon.setColorFilter(toolColor, PorterDuff.Mode.SRC_IN)
-        temporaryPillLabel.setTextColor(toolColor)
+        temporaryChatButton.alpha = if (isTemporaryChat) 1f else 0.68f
+        findViewById<View>(R.id.temporaryComposerButton)?.alpha = if (isTemporaryChat) 1f else 0.62f
         updateHomeVisibility()
     }
 
@@ -784,6 +767,8 @@ class MainActivity : AppCompatActivity() {
 
         if (handleMemoryCommand(text, convId, thinkingIndex)) return
 
+        if (handleSkillCommand(text, convId, thinkingIndex)) return
+
         // Compound commands ("open X and do Y", "control my screen...") are
         // checked FIRST, before the simple device-command patterns — a plain
         // Intent can only ever do ONE simple thing (open an app), so if the
@@ -854,7 +839,49 @@ class MainActivity : AppCompatActivity() {
         return false
     }
 
+    private fun handleSkillCommand(text: String, convId: String, thinkingIndex: Int): Boolean {
+        val normalized = text.trim()
+        if (Regex("(?i)^(do it again|repeat (the )?(last|previous) task|repeat that)$").matches(normalized)) {
+            val goal = SkillStore.getLastGoal(this)
+            if (goal.isNullOrBlank()) {
+                replaceMessage(convId, thinkingIndex, "There is no completed autonomous task to repeat yet.")
+            } else {
+                replaceMessage(convId, thinkingIndex, "Repeating the last task: $goal", persist = false)
+                startAutonomousTask(goal, thinkingIndex, convId)
+            }
+            return true
+        }
+
+        val save = Regex("(?i)^save (?:this )?task as (.+)$").find(normalized)
+        if (save != null) {
+            val goal = SkillStore.getLastGoal(this)
+            val name = save.groupValues[1].trim()
+            if (goal.isNullOrBlank()) {
+                replaceMessage(convId, thinkingIndex, "Finish an autonomous task first, then I can save it as a Skill.")
+            } else {
+                SkillStore.save(this, name, goal)
+                replaceMessage(convId, thinkingIndex, "Saved as Skill: $name")
+            }
+            return true
+        }
+
+        val run = Regex("(?i)^(run|use) skill (.+)$").find(normalized)
+        if (run != null) {
+            val name = run.groupValues[2].trim()
+            val goal = SkillStore.get(this, name)
+            if (goal.isNullOrBlank()) {
+                replaceMessage(convId, thinkingIndex, "I couldn't find a Skill named $name.")
+            } else {
+                replaceMessage(convId, thinkingIndex, "Running Skill: $name", persist = false)
+                startAutonomousTask(goal, thinkingIndex, convId)
+            }
+            return true
+        }
+        return false
+    }
+
     private fun startAutonomousTask(goal: String, thinkingIndex: Int, convId: String) {
+        SkillStore.setLastGoal(this, goal)
         if (!HmlAccessibilityService.isRunning()) {
             val message = if (HmlAccessibilityService.isEnabledInSettings(this)) {
                 "⏳ Autonomous Control is enabled but still starting up. Give it a few seconds and try again."
@@ -892,6 +919,7 @@ class MainActivity : AppCompatActivity() {
                 }
             },
             onFinished = { finalMessage ->
+                SkillStore.setLastGoal(this, goal)
                 replaceMessage(convId, thinkingIndex, finalMessage)
                 OverlayBubble.hide(this)
                 activeTaskRunner = null

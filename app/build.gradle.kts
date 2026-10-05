@@ -11,8 +11,8 @@ android {
         applicationId = "com.hmlai.agent"
         minSdk = 26
         targetSdk = 34
-        versionCode = 18
-        versionName = "1.1"
+        versionCode = 19
+        versionName = "1.2"
     }
 
     signingConfigs {

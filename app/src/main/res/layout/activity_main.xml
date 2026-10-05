@@ -49,14 +49,14 @@
 
             <ImageButton
                 android:id="@+id/temporaryChatButton"
-                style="@style/MinimalIconButton"
+                style="@style/TopTemporaryButton"
                 android:src="@drawable/ic_temp_ring"
                 android:contentDescription="@string/temporary_chat" />
 
             <ImageButton
                 android:id="@+id/newChatButton"
-                style="@style/MinimalIconButton"
-                android:layout_marginStart="4dp"
+                style="@style/TopNewChatButton"
+                android:layout_marginStart="6dp"
                 android:src="@drawable/ic_add"
                 android:contentDescription="@string/new_chat" />
         </LinearLayout>
@@ -355,100 +355,58 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginHorizontal="12dp"
-                android:orientation="vertical"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
                 android:background="@drawable/composer_bg"
-                android:padding="7dp">
+                android:paddingHorizontal="5dp"
+                android:paddingVertical="4dp">
 
-                <LinearLayout
-                    android:layout_width="match_parent"
+                <ImageButton
+                    android:id="@+id/temporaryComposerButton"
+                    style="@style/ComposerTemporaryButton"
+                    android:src="@drawable/ic_temp_ring"
+                    android:contentDescription="@string/temporary_chat" />
+
+                <ImageButton
+                    android:id="@+id/attachButton"
+                    style="@style/ComposerAttachButton"
+                    android:src="@drawable/ic_attach"
+                    android:contentDescription="@string/attach_file" />
+
+                <EditText
+                    android:id="@+id/messageInput"
+                    android:layout_width="0dp"
                     android:layout_height="wrap_content"
-                    android:gravity="center_vertical">
+                    android:layout_weight="1"
+                    android:minHeight="38dp"
+                    android:maxHeight="110dp"
+                    android:background="@null"
+                    android:hint="@string/message_hint"
+                    android:textColorHint="@color/text_hint"
+                    android:textColor="@color/text_primary"
+                    android:textSize="14sp"
+                    android:fontFamily="sans-serif"
+                    android:maxLines="4"
+                    android:inputType="textMultiLine|textCapSentences"
+                    android:paddingHorizontal="6dp"
+                    android:paddingVertical="5dp" />
 
-                    <ImageButton
-                        android:id="@+id/attachButton"
-                        style="@style/ComposerIconButton"
-                        android:src="@drawable/ic_add"
-                        android:contentDescription="@string/attach_file" />
+                <ImageButton
+                    android:id="@+id/micButton"
+                    style="@style/ComposerVoiceButton"
+                    android:src="@drawable/ic_voice_wave"
+                    android:contentDescription="@string/voice_input" />
 
-                    <EditText
-                        android:id="@+id/messageInput"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:minHeight="46dp"
-                        android:background="@null"
-                        android:hint="@string/message_hint"
-                        android:textColorHint="@color/text_hint"
-                        android:textColor="@color/text_primary"
-                        android:textSize="14sp"
-                        android:fontFamily="sans-serif"
-                        android:maxLines="5"
-                        android:inputType="textMultiLine|textCapSentences"
-                        android:paddingHorizontal="8dp"
-                        android:paddingVertical="9dp" />
-
-                    <ImageButton
-                        android:id="@+id/micButton"
-                        style="@style/ComposerIconButton"
-                        android:src="@drawable/ic_mic"
-                        android:contentDescription="@string/voice_input" />
-
-                    <ImageButton
-                        android:id="@+id/sendButton"
-                        android:layout_width="44dp"
-                        android:layout_height="44dp"
-                        android:layout_marginStart="3dp"
-                        android:background="@drawable/send_btn_bg"
-                        android:src="@drawable/ic_send"
-                        android:tint="#FFFFFF"
-                        android:padding="11dp"
-                        android:contentDescription="@string/send" />
-                </LinearLayout>
-
-                <!-- Kept as a functional target for existing temporary-chat logic, but reduced to an icon. -->
-                <FrameLayout
-                    android:id="@+id/temporaryPill"
-                    android:layout_width="1dp"
-                    android:layout_height="1dp"
-                    android:visibility="visible">
-                    <ImageView
-                        android:id="@+id/temporaryPillIcon"
-                        android:layout_width="1dp"
-                        android:layout_height="1dp"
-                        android:src="@drawable/ic_temp_ring" />
-                    <TextView
-                        android:id="@+id/temporaryPillLabel"
-                        android:layout_width="1dp"
-                        android:layout_height="1dp"
-                        android:visibility="gone" />
-                </FrameLayout>
+                <ImageButton
+                    android:id="@+id/sendButton"
+                    style="@style/ComposerSendButton"
+                    android:background="@drawable/send_btn_bg"
+                    android:src="@drawable/ic_send"
+                    android:tint="#FFFFFF"
+                    android:contentDescription="@string/send" />
             </LinearLayout>
         </LinearLayout>
 
-        <!-- Icon-only dock. It disappears when the IME opens, leaving the composer attached to it. -->
-        <LinearLayout
-            android:id="@+id/bottomNav"
-            android:layout_width="168dp"
-            android:layout_height="54dp"
-            android:layout_marginBottom="10dp"
-            android:gravity="center"
-            android:orientation="horizontal"
-            android:background="@drawable/bottom_nav_bg"
-            android:elevation="8dp"
-            app:layout_constraintBottom_toTopOf="@id/composerContainer"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintEnd_toEndOf="parent">
-
-            <LinearLayout android:id="@+id/navHome" style="@style/NavItemCompact">
-                <ImageView android:layout_width="21dp" android:layout_height="21dp" android:src="@drawable/ic_nav_home" android:tint="@color/nav_item_tint" android:duplicateParentState="true" />
-            </LinearLayout>
-            <LinearLayout android:id="@+id/navChat" style="@style/NavItemCompact">
-                <ImageView android:layout_width="21dp" android:layout_height="21dp" android:src="@drawable/ic_nav_chat" android:tint="@color/nav_item_tint" android:duplicateParentState="true" />
-            </LinearLayout>
-            <LinearLayout android:id="@+id/navHistory" style="@style/NavItemCompact">
-                <ImageView android:layout_width="21dp" android:layout_height="21dp" android:src="@drawable/ic_nav_history" android:tint="@color/nav_item_tint" android:duplicateParentState="true" />
-            </LinearLayout>
-        </LinearLayout>
     </androidx.constraintlayout.widget.ConstraintLayout>
 
     <!-- Drawer remains the power-user/history surface, not part of the main visual noise. -->

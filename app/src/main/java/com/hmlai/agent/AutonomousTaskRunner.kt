@@ -44,7 +44,9 @@ class AutonomousTaskRunner(
     private var finished = false
 
     private var consecutiveFailures = 0
+    private var recoveryPasses = 0
     private val maxConsecutiveFailures = 3
+    private val maxRecoveryPasses = 2
 
     fun start(goal: String) {
         if (!HmlAccessibilityService.isRunning()) {
@@ -53,6 +55,7 @@ class AutonomousTaskRunner(
         }
         currentStep = 0
         consecutiveFailures = 0
+        recoveryPasses = 0
         cancelled = false
         finished = false
         startedAt = System.currentTimeMillis()
@@ -112,11 +115,19 @@ class AutonomousTaskRunner(
     ) {
         if (cancelled || finished) return
         consecutiveFailures = if (succeeded) 0 else consecutiveFailures + 1
-        if (consecutiveFailures >= maxConsecutiveFailures) {
-            finishOnce("I tried a few times but couldn't find the right element safely, so I stopped rather than keep guessing.")
+        val nextHistory = (history + observation).takeLast(8)
+        if (!succeeded) {
+            recoveryPasses++
+            if (consecutiveFailures >= maxConsecutiveFailures || recoveryPasses > maxRecoveryPasses) {
+                finishOnce("I tried a few recovery paths but couldn't find the right element safely, so I stopped rather than keep guessing.")
+                return
+            }
+            onStatusUpdate("Recovering · re-reading the screen")
+            mainHandler.postDelayed({ step(goal, nextHistory + "RECOVERY: The previous action failed. Re-observe the current screen and choose a different safe route; do not repeat the same target blindly.") }, 350)
             return
         }
-        mainHandler.postDelayed({ step(goal, (history + observation).takeLast(8)) }, delayMs)
+        recoveryPasses = 0
+        mainHandler.postDelayed({ step(goal, nextHistory) }, delayMs)
     }
 
     private fun sendStepRequest(
@@ -130,6 +141,10 @@ class AutonomousTaskRunner(
             put("goal", goal)
             put("screen", screenText.take(20_000))
             put("history", history.joinToString("\n").take(8_000))
+            put("agent_mode", "adaptive_recovery")
+            put("step", currentStep)
+            put("max_steps", maxSteps)
+            put("recovery_passes", recoveryPasses)
             if (screenshotBase64 != null) put("screenshot", screenshotBase64)
         }.toString()
 

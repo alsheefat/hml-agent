@@ -81,7 +81,7 @@
     <string name="chip_phone_command">Call </string>
     <string name="autonomous_control_title">Autonomous Control</string>
     <string name="autonomous_control_badge">ACCESSIBILITY</string>
-    <string name="autonomous_control_desc">When Android Accessibility is enabled, HML can read the current screen and perform supported tap, type, scroll and back actions. The current runner is bounded by 15 steps and two minutes, verifies action results, and asks before common high-impact actions.</string>
+    <string name="autonomous_control_desc">When Android Accessibility is enabled, HML can read the current screen and perform supported tap, type, scroll and back actions. The current runner is bounded by 15 steps and two minutes, re-reads the screen after actions, can recover from failed targets, and asks before common high-impact actions.</string>
     <string name="send">Send</string>
     <string name="log_out">Log out</string>
     <string name="log_out_confirm">Log out of HML Agent?</string>
