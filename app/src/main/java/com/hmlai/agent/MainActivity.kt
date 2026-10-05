@@ -87,6 +87,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var chatHeader: View
     private lateinit var chatTitle: TextView
     private lateinit var composerWrap: View
+    private lateinit var composerFade: View
     private lateinit var topBarView: View
     private lateinit var taskCard: View
     private lateinit var taskLive: TextView
@@ -128,15 +129,6 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         WindowCompat.setDecorFitsSystemWindows(window, false)
-        window.statusBarColor = Color.TRANSPARENT
-        window.navigationBarColor = Color.TRANSPARENT
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            window.isNavigationBarContrastEnforced = false
-        }
-        WindowCompat.getInsetsController(window, window.decorView).apply {
-            isAppearanceLightStatusBars = false
-            isAppearanceLightNavigationBars = false
-        }
         setContentView(R.layout.activity_main)
         UserProfileStore.seedDefaultsIfEmpty(this)
 
@@ -164,11 +156,8 @@ class MainActivity : AppCompatActivity() {
         chatHeader = findViewById(R.id.chatHeader)
         chatTitle = findViewById(R.id.chatTitle)
         composerWrap = findViewById(R.id.composerWrap)
+        composerFade = findViewById(R.id.composerFade)
         topBarView = findViewById(R.id.topBar)
-        val composerHalo = findViewById<View>(R.id.composerHalo)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            composerHalo.setRenderEffect(android.graphics.RenderEffect.createBlurEffect(18f, 18f, android.graphics.Shader.TileMode.CLAMP))
-        }
         // Keep the list's top padding + fade zone matched to the real height of the top
         // controls (status bar + icons + optional chat title), after every layout pass.
         messageList.viewTreeObserver.addOnGlobalLayoutListener { updateTopZone() }
@@ -239,6 +228,7 @@ class MainActivity : AppCompatActivity() {
             }
             val lift = (ime.bottom - navBottom).coerceAtLeast(0)
             composerContainer.translationY = -lift.toFloat()
+            composerFade.translationY = -lift.toFloat()
 
             // Keep the latest message above the keyboard + composer when the IME is open,
             // without translating the chat itself. The view's actual bounds stay put.
@@ -898,6 +888,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun loadConversation(conversation: Conversation) {
+        persistCurrentConversation()
         currentConversationId = conversation.id
         isTemporaryChat = false
         forceHome = false

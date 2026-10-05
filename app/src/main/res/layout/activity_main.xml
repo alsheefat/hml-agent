@@ -11,19 +11,8 @@
         android:layout_height="match_parent"
         android:background="@drawable/app_bg">
 
-        <!-- Continuous top atmosphere. This is ONLY a transparent gradient: no panel,
-             border or shared surface. It begins at Y=0, including behind the system status bar,
-             and continues behind the individual top-control surfaces. -->
-        <View
-            android:id="@+id/topAtmosphereFade"
-            android:layout_width="0dp"
-            android:layout_height="220dp"
-            android:background="@drawable/top_atmosphere_fade"
-            android:clickable="false"
-            android:focusable="false"
-            app:layout_constraintTop_toTopOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintEnd_toEndOf="parent" />
+        <!-- The app background itself provides the soft upper glow. There is intentionally
+             no full-width header surface here: each top control owns its own rounded surface. -->
 
         <!-- Starts at the very top of the screen so chat content scrolls UNDER the top controls.
              FadeTopRecyclerView fades that content out under the icons (no overlay rectangle). -->
@@ -254,6 +243,18 @@
                 android:visibility="gone" />
         </LinearLayout>
 
+        <!-- Soft fade of chat content into the composer area (moves with the composer). -->
+        <View
+            android:id="@+id/composerFade"
+            android:layout_width="0dp"
+            android:layout_height="26dp"
+            android:background="@drawable/composer_top_fade"
+            android:clickable="false"
+            android:focusable="false"
+            app:layout_constraintBottom_toTopOf="@id/composerContainer"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent" />
+
         <!-- Bottom-anchored. Solid background so nothing shows through behind/under the bar
              (including the system navigation bar area, which is added as bottom padding). -->
         <LinearLayout
@@ -263,7 +264,7 @@
             android:orientation="vertical"
             android:paddingTop="6dp"
             android:paddingBottom="8dp"
-            android:background="@android:color/transparent"
+            android:background="@color/bg_black"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent">
@@ -363,34 +364,16 @@
                     android:orientation="horizontal" />
             </HorizontalScrollView>
 
-            <FrameLayout
-                android:id="@+id/composerGlassStage"
+            <LinearLayout
+                android:id="@+id/composerWrap"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginHorizontal="10dp"
-                android:clipChildren="false"
-                android:clipToPadding="false">
-
-                <!-- Equal soft feather on all sides of the composer silhouette. -->
-                <View
-                    android:id="@+id/composerHalo"
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:layout_gravity="center"
-                    android:layout_margin="-8dp"
-                    android:background="@drawable/composer_halo_bg"
-                    android:clickable="false"
-                    android:focusable="false" />
-
-                <LinearLayout
-                    android:id="@+id/composerWrap"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:gravity="center_vertical"
-                    android:background="@drawable/composer_glass_bg"
-                    android:paddingHorizontal="5dp"
-                    android:paddingVertical="4dp">
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:background="@drawable/composer_glass_bg"
+                android:paddingHorizontal="5dp"
+                android:paddingVertical="4dp">
 
                 <ImageButton
                     android:id="@+id/attachButton"
@@ -430,7 +413,6 @@
                     android:tint="#FFFFFF"
                     android:contentDescription="@string/send" />
             </LinearLayout>
-            </FrameLayout>
         </LinearLayout>
 
     </androidx.constraintlayout.widget.ConstraintLayout>
@@ -475,7 +457,7 @@
         <TextView
             android:id="@+id/drawerNewChat"
             android:layout_width="match_parent"
-            android:layout_height="49dp"
+            android:layout_height="46dp"
             android:layout_marginHorizontal="0dp"
             android:background="@drawable/new_chat_bg"
             android:gravity="center"
@@ -513,7 +495,7 @@
             android:layout_marginTop="10dp"
             android:orientation="horizontal"
             android:gravity="center_vertical"
-            android:padding="12dp"
+            android:padding="11dp"
             android:background="@drawable/account_card_bg"
             android:clickable="true"
             android:focusable="true">

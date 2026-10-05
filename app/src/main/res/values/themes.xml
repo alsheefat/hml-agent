@@ -17,11 +17,8 @@
         <item name="colorError">@color/color_error</item>
         <item name="colorControlHighlight">@color/hover_tint</item>
         <item name="android:windowBackground">@color/bg_black</item>
-        <item name="android:windowLightStatusBar">false</item>
-        <item name="android:windowLightNavigationBar">false</item>
-        <item name="android:navigationBarDividerColor">@android:color/transparent</item>
-        <item name="android:statusBarColor">@android:color/transparent</item>
-        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:statusBarColor">@color/bg_black</item>
+        <item name="android:navigationBarColor">@color/bg_black</item>
         <item name="android:textColor">@color/text_primary</item>
         <item name="android:textColorHint">@color/text_muted</item>
         <item name="android:textColorHighlight">@color/text_highlight</item>

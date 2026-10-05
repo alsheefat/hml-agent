@@ -11,7 +11,7 @@ android {
         applicationId = "com.hmlai.agent"
         minSdk = 26
         targetSdk = 34
-        versionCode = 24
+        versionCode = 23
         versionName = "1.5"
     }
 
@@ -56,7 +56,10 @@ tasks.configureEach {
         doLast {
             val source = layout.buildDirectory.file("outputs/apk/debug/app-debug.apk").get().asFile
             val named = layout.buildDirectory.file("outputs/apk/debug/HML-Agent-v1.5.apk").get().asFile
-            if (source.exists()) source.copyTo(named, overwrite = true)
+            if (source.exists()) {
+                if (named.exists()) named.delete()
+                source.renameTo(named)
+            }
         }
     }
 }
