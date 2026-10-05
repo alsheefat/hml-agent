@@ -103,7 +103,7 @@ class HmlAccessibilityService : AccessibilityService() {
             ?: candidates.firstOrNull { it.second.first.lowercase().contains(wanted) }
             ?: return false
         return try {
-            match.second.second.addFlags(Context.FLAG_ACTIVITY_NEW_TASK)
+            match.second.second.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
             startActivity(match.second.second)
             true
         } catch (_: Exception) { false }

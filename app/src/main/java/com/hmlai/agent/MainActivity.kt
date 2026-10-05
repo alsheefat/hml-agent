@@ -427,7 +427,7 @@ class MainActivity : AppCompatActivity() {
         val editText = EditText(this).apply {
             setText(conversation.title)
             setSelection(text.length)
-            singleLine = true
+            setSingleLine(true)
             hint = getString(R.string.rename_conversation)
             background = ContextCompat.getDrawable(this@MainActivity, R.drawable.rename_field_bg)
             setTextColor(ContextCompat.getColor(this@MainActivity, R.color.text_primary))
