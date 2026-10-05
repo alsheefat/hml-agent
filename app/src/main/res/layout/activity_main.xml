@@ -5,119 +5,161 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
-    <!-- ============================ Main content ============================ -->
+    <!-- ====================== Main content (HML Agent UI concept) ====================== -->
     <androidx.constraintlayout.widget.ConstraintLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="@color/bg_black">
+        android:background="@drawable/app_bg">
 
-        <!-- Top bar -->
+        <!-- Top bar: ☰  [H] HML Agent / ● ready   ◌  ＋ -->
         <LinearLayout
             android:id="@+id/topBar"
             android:layout_width="0dp"
-            android:layout_height="wrap_content"
+            android:layout_height="72dp"
             android:orientation="horizontal"
             android:gravity="center_vertical"
-            android:paddingHorizontal="10dp"
-            android:paddingVertical="8dp"
-            android:background="@color/bg_black"
+            android:paddingHorizontal="14dp"
             app:layout_constraintTop_toTopOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent">
 
-            <!-- Top-left: open past conversations -->
             <ImageButton
                 android:id="@+id/menuButton"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
-                android:background="@drawable/icon_btn_bg"
-                android:padding="9dp"
+                style="@style/TopIcon"
                 android:src="@drawable/ic_menu"
-                android:tint="@color/blue_deep"
                 android:contentDescription="@string/recent" />
 
-            <ImageView
-                android:layout_width="10dp"
-                android:layout_height="10dp"
-                android:layout_marginStart="12dp"
-                android:layout_marginEnd="10dp"
-                android:src="@drawable/status_dot_glow" />
-
-            <TextView
+            <LinearLayout
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="@string/app_name"
-                android:textColor="@color/text_primary"
-                android:textSize="16sp"
-                android:textStyle="bold" />
+                android:layout_marginStart="10dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
 
-            <!-- Top-right: temporary chat (not saved to history), then start a new chat -->
+                <TextView
+                    android:layout_width="30dp"
+                    android:layout_height="30dp"
+                    android:background="@drawable/brand_mark_bg"
+                    android:gravity="center"
+                    android:text="H"
+                    android:textColor="#FFFFFF"
+                    android:textSize="15sp"
+                    android:fontFamily="sans-serif-medium"
+                    android:textStyle="bold" />
+
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="9dp"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/app_name"
+                        android:textColor="@color/text_primary"
+                        android:textSize="16sp"
+                        android:fontFamily="sans-serif-medium"
+                        android:textStyle="bold"
+                        android:letterSpacing="-0.02" />
+
+                    <LinearLayout
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <ImageView
+                            android:layout_width="12dp"
+                            android:layout_height="12dp"
+                            android:src="@drawable/dot_good"
+                            android:contentDescription="@null" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="3dp"
+                            android:text="@string/status_ready"
+                            android:textColor="@color/text_dim"
+                            android:textSize="9sp"
+                            android:fontFamily="monospace"
+                            android:letterSpacing="0.03" />
+                    </LinearLayout>
+                </LinearLayout>
+            </LinearLayout>
+
             <ImageButton
                 android:id="@+id/temporaryChatButton"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
-                android:layout_marginEnd="2dp"
-                android:background="@drawable/temporary_btn_bg"
-                android:padding="9dp"
-                android:src="@drawable/ic_temporary"
-                android:tint="@color/blue_deep"
+                style="@style/TopIcon"
+                android:layout_marginEnd="10dp"
+                android:src="@drawable/ic_temp_ring"
                 android:contentDescription="@string/temporary_chat" />
 
             <ImageButton
                 android:id="@+id/newChatButton"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
-                android:background="@drawable/double_ring_btn_bg"
-                android:padding="9dp"
+                style="@style/TopIcon"
                 android:src="@drawable/ic_add"
-                android:tint="@color/blue_glow"
                 android:contentDescription="@string/new_chat" />
-
         </LinearLayout>
 
-        <View
-            android:id="@+id/topDivider"
-            android:layout_width="0dp"
-            android:layout_height="1dp"
-            android:background="@color/line"
-            app:layout_constraintTop_toBottomOf="@id/topBar"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintEnd_toEndOf="parent" />
-
-        <!-- Shown only while in a temporary chat -->
-        <TextView
-            android:id="@+id/temporaryBanner"
+        <!-- Chat header: conversation title + TEMPORARY badge (concept's .chathead) -->
+        <LinearLayout
+            android:id="@+id/chatHeader"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginHorizontal="12dp"
-            android:layout_marginTop="10dp"
-            android:background="@drawable/chip_bg"
-            android:gravity="center"
-            android:paddingVertical="7dp"
-            android:text="@string/temporary_chat_banner"
-            android:textColor="@color/text_secondary"
-            android:textSize="12sp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingHorizontal="19dp"
+            android:paddingTop="6dp"
+            android:paddingBottom="4dp"
             android:visibility="gone"
-            app:layout_constraintTop_toBottomOf="@id/topDivider"
+            app:layout_constraintTop_toBottomOf="@id/topBar"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintEnd_toEndOf="parent" />
+            app:layout_constraintEnd_toEndOf="parent">
 
-        <!-- Message list -->
+            <TextView
+                android:id="@+id/chatTitle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:text="@string/new_conversation"
+                android:textColor="@color/text_primary"
+                android:textSize="17sp"
+                android:fontFamily="sans-serif-medium"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/temporaryBanner"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/temp_badge_bg"
+                android:paddingHorizontal="8dp"
+                android:paddingVertical="6dp"
+                android:text="@string/temporary_badge"
+                android:textColor="@color/blue_glow"
+                android:textSize="8sp"
+                android:fontFamily="monospace"
+                android:visibility="gone" />
+        </LinearLayout>
+
+        <!-- Message list (chat screen) -->
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/messageList"
             android:layout_width="0dp"
             android:layout_height="0dp"
             android:clipToPadding="false"
-            android:paddingHorizontal="16dp"
-            android:paddingTop="16dp"
-            android:paddingBottom="16dp"
-            app:layout_constraintTop_toBottomOf="@id/temporaryBanner"
+            android:paddingHorizontal="14dp"
+            android:paddingTop="8dp"
+            android:paddingBottom="14dp"
+            app:layout_constraintTop_toBottomOf="@id/chatHeader"
             app:layout_constraintBottom_toTopOf="@id/composerContainer"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent" />
 
-        <!-- Home screen: shown instead of the (empty) message list on a fresh chat -->
+        <!-- Home screen: hero + real commands + autonomous-control card -->
         <ScrollView
             android:id="@+id/homeContentView"
             android:layout_width="0dp"
@@ -125,7 +167,7 @@
             android:clipToPadding="false"
             android:fillViewport="true"
             android:scrollbars="none"
-            app:layout_constraintTop_toBottomOf="@id/temporaryBanner"
+            app:layout_constraintTop_toBottomOf="@id/chatHeader"
             app:layout_constraintBottom_toTopOf="@id/composerContainer"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent">
@@ -134,124 +176,104 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:paddingHorizontal="18dp"
-                android:paddingTop="30dp"
+                android:paddingHorizontal="14dp"
+                android:paddingTop="26dp"
                 android:paddingBottom="16dp">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/home_eyebrow"
-                    android:textColor="@color/text_muted"
-                    android:textSize="10sp"
-                    android:letterSpacing="0.15"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:id="@+id/homeHeadline"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="10dp"
-                    android:text="@string/home_headline_1"
-                    android:textColor="@color/text_primary"
-                    android:textSize="30sp"
-                    android:textStyle="bold"
-                    android:lineSpacingMultiplier="1.02" />
-
-                <TextView
-                    android:id="@+id/homeHeadlineAccent"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/home_headline_2"
-                    android:textColor="@color/blue_glow"
-                    android:textSize="30sp"
-                    android:textStyle="bold"
-                    android:lineSpacingMultiplier="1.02" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp"
-                    android:text="@string/home_subtitle"
-                    android:textColor="@color/text_secondary"
-                    android:textSize="13sp"
-                    android:lineSpacingMultiplier="1.4"
-                    app:layout_constraintWidth_max="320dp" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="30dp"
-                    android:layout_marginBottom="10dp"
-                    android:text="@string/quick_commands_title"
-                    android:textColor="@color/text_muted"
-                    android:textSize="10sp"
-                    android:letterSpacing="0.1"
-                    android:textStyle="bold" />
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:orientation="horizontal">
+                    android:orientation="vertical"
+                    android:paddingHorizontal="8dp">
 
-                    <LinearLayout
-                        android:id="@+id/chipFlashlight"
-                        style="@style/CommandChip"
-                        android:layout_marginEnd="4dp">
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/home_eyebrow"
+                        android:textColor="#5F7188"
+                        android:textSize="10sp"
+                        android:fontFamily="monospace"
+                        android:letterSpacing="0.15" />
+
+                    <TextView
+                        android:id="@+id/homeHeadline"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="13dp"
+                        android:text="@string/home_headline_1"
+                        android:textColor="@color/text_primary"
+                        android:textSize="42sp"
+                        android:fontFamily="sans-serif-medium"
+                        android:textStyle="bold"
+                        android:letterSpacing="-0.05"
+                        android:includeFontPadding="false"
+                        android:lineSpacingMultiplier="0.98" />
+
+                    <TextView
+                        android:id="@+id/homeHeadlineAccent"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/home_headline_2"
+                        android:textColor="@color/blue_glow"
+                        android:textSize="42sp"
+                        android:fontFamily="sans-serif-medium"
+                        android:textStyle="bold"
+                        android:letterSpacing="-0.05"
+                        android:includeFontPadding="false"
+                        android:lineSpacingMultiplier="0.98" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="15dp"
+                        android:text="@string/home_subtitle"
+                        android:textColor="#7F8B9D"
+                        android:textSize="13sp"
+                        android:lineSpacingMultiplier="1.3" />
+                </LinearLayout>
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="5dp"
+                    android:layout_marginTop="30dp"
+                    android:layout_marginBottom="10dp"
+                    android:text="@string/quick_commands_title"
+                    android:textColor="#566376"
+                    android:textSize="10sp"
+                    android:fontFamily="monospace"
+                    android:textStyle="bold"
+                    android:letterSpacing="0.1" />
+
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:layout_marginTop="0dp" android:orientation="horizontal">
+                    <LinearLayout android:id="@+id/chipFlashlight" style="@style/CommandChip" android:layout_marginEnd="4dp">
                         <TextView style="@style/CommandChip.Title" android:text="@string/chip_flashlight_title" />
                         <TextView style="@style/CommandChip.Subtitle" android:text="@string/chip_flashlight_sub" />
                     </LinearLayout>
-
-                    <LinearLayout
-                        android:id="@+id/chipApps"
-                        style="@style/CommandChip"
-                        android:layout_marginStart="4dp">
+                    <LinearLayout android:id="@+id/chipApps" style="@style/CommandChip" android:layout_marginStart="4dp">
                         <TextView style="@style/CommandChip.Title" android:text="@string/chip_apps_title" />
                         <TextView style="@style/CommandChip.Subtitle" android:text="@string/chip_apps_sub" />
                     </LinearLayout>
                 </LinearLayout>
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:orientation="horizontal">
-
-                    <LinearLayout
-                        android:id="@+id/chipMusic"
-                        style="@style/CommandChip"
-                        android:layout_marginEnd="4dp">
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp" android:orientation="horizontal">
+                    <LinearLayout android:id="@+id/chipMusic" style="@style/CommandChip" android:layout_marginEnd="4dp">
                         <TextView style="@style/CommandChip.Title" android:text="@string/chip_music_title" />
                         <TextView style="@style/CommandChip.Subtitle" android:text="@string/chip_music_sub" />
                     </LinearLayout>
-
-                    <LinearLayout
-                        android:id="@+id/chipYoutube"
-                        style="@style/CommandChip"
-                        android:layout_marginStart="4dp">
+                    <LinearLayout android:id="@+id/chipYoutube" style="@style/CommandChip" android:layout_marginStart="4dp">
                         <TextView style="@style/CommandChip.Title" android:text="@string/chip_youtube_title" />
                         <TextView style="@style/CommandChip.Subtitle" android:text="@string/chip_youtube_sub" />
                     </LinearLayout>
                 </LinearLayout>
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:orientation="horizontal">
-
-                    <LinearLayout
-                        android:id="@+id/chipReminder"
-                        style="@style/CommandChip"
-                        android:layout_marginEnd="4dp">
+                <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp" android:orientation="horizontal">
+                    <LinearLayout android:id="@+id/chipReminder" style="@style/CommandChip" android:layout_marginEnd="4dp">
                         <TextView style="@style/CommandChip.Title" android:text="@string/chip_reminder_title" />
                         <TextView style="@style/CommandChip.Subtitle" android:text="@string/chip_reminder_sub" />
                     </LinearLayout>
-
-                    <LinearLayout
-                        android:id="@+id/chipPhone"
-                        style="@style/CommandChip"
-                        android:layout_marginStart="4dp">
+                    <LinearLayout android:id="@+id/chipPhone" style="@style/CommandChip" android:layout_marginStart="4dp">
                         <TextView style="@style/CommandChip.Title" android:text="@string/chip_phone_title" />
                         <TextView style="@style/CommandChip.Subtitle" android:text="@string/chip_phone_sub" />
                     </LinearLayout>
@@ -260,7 +282,7 @@
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="20dp"
+                    android:layout_marginTop="18dp"
                     android:orientation="vertical"
                     android:background="@drawable/info_card_bg"
                     android:padding="14dp">
@@ -277,7 +299,8 @@
                             android:layout_weight="1"
                             android:text="@string/autonomous_control_title"
                             android:textColor="@color/text_primary"
-                            android:textSize="13sp"
+                            android:textSize="12sp"
+                            android:fontFamily="sans-serif-medium"
                             android:textStyle="bold" />
 
                         <TextView
@@ -285,10 +308,11 @@
                             android:layout_height="wrap_content"
                             android:background="@drawable/badge_bg"
                             android:paddingHorizontal="7dp"
-                            android:paddingVertical="4dp"
+                            android:paddingVertical="5dp"
                             android:text="@string/autonomous_control_badge"
-                            android:textColor="@color/blue_glow"
-                            android:textSize="9sp" />
+                            android:textColor="#66BAFF"
+                            android:textSize="9sp"
+                            android:fontFamily="monospace" />
                     </LinearLayout>
 
                     <TextView
@@ -296,29 +320,100 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="8dp"
                         android:text="@string/autonomous_control_desc"
-                        android:textColor="@color/text_muted"
-                        android:textSize="11sp"
+                        android:textColor="#6E7B8D"
+                        android:textSize="10sp"
                         android:lineSpacingMultiplier="1.4" />
                 </LinearLayout>
-
             </LinearLayout>
         </ScrollView>
 
-        <!-- Composer area: pending attachments + input row -->
+        <!-- Composer card + autonomous task card, stacked above the floating nav -->
         <LinearLayout
             android:id="@+id/composerContainer"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            app:layout_constraintBottom_toBottomOf="parent"
+            android:layout_marginBottom="8dp"
+            app:layout_constraintBottom_toTopOf="@id/bottomNav"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent">
+
+            <!-- Autonomous task card (shown while the on-screen agent is working) -->
+            <LinearLayout
+                android:id="@+id/taskCard"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginHorizontal="14dp"
+                android:layout_marginBottom="10dp"
+                android:orientation="vertical"
+                android:background="@drawable/task_card_bg"
+                android:padding="12dp"
+                android:visibility="gone">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <View
+                        android:layout_width="30dp"
+                        android:layout_height="30dp"
+                        android:background="@drawable/orb_bg" />
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:layout_marginStart="9dp"
+                        android:text="@string/task_title"
+                        android:textColor="@color/text_primary"
+                        android:textSize="11sp"
+                        android:fontFamily="sans-serif-medium"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/taskLive"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/task_live"
+                        android:textColor="#53E7A2"
+                        android:textSize="8sp"
+                        android:fontFamily="monospace" />
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/taskStatus"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:textColor="#AAB8C8"
+                    android:textSize="10sp" />
+
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginTop="7dp" android:gravity="center_vertical" android:orientation="horizontal">
+                <TextView android:id="@+id/taskCheck1" style="@style/TaskStepCheck" android:text="1" />
+                <TextView android:id="@+id/taskLabel1" style="@style/TaskStepLabel" android:text="@string/task_step_1" />
+            </LinearLayout>
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginTop="7dp" android:gravity="center_vertical" android:orientation="horizontal">
+                <TextView android:id="@+id/taskCheck2" style="@style/TaskStepCheck" android:text="2" />
+                <TextView android:id="@+id/taskLabel2" style="@style/TaskStepLabel" android:text="@string/task_step_2" />
+            </LinearLayout>
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:layout_marginTop="7dp" android:gravity="center_vertical" android:orientation="horizontal">
+                <TextView android:id="@+id/taskCheck3" style="@style/TaskStepCheck" android:text="3" />
+                <TextView android:id="@+id/taskLabel3" style="@style/TaskStepLabel" android:text="@string/task_step_3" />
+            </LinearLayout>
+            </LinearLayout>
 
             <HorizontalScrollView
                 android:id="@+id/attachmentsScroll"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginHorizontal="12dp"
+                android:layout_marginHorizontal="14dp"
                 android:layout_marginBottom="6dp"
                 android:visibility="gone"
                 android:scrollbars="none">
@@ -330,187 +425,208 @@
                     android:orientation="horizontal" />
             </HorizontalScrollView>
 
+            <!-- Glass composer: input + gradient send, tools row below -->
             <LinearLayout
                 android:id="@+id/composerWrap"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:layout_marginHorizontal="14dp"
                 android:orientation="vertical"
                 android:background="@drawable/composer_bg"
-                android:padding="8dp"
-                android:layout_marginHorizontal="12dp"
-                android:layout_marginBottom="12dp">
+                android:padding="10dp">
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:gravity="bottom">
+                    android:gravity="bottom"
+                    android:orientation="horizontal">
 
                     <EditText
                         android:id="@+id/messageInput"
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:layout_marginStart="6dp"
+                        android:minHeight="48dp"
                         android:background="@null"
                         android:hint="@string/message_hint"
-                        android:textColorHint="@color/text_muted"
+                        android:textColorHint="@color/text_hint"
                         android:textColor="@color/text_primary"
-                        android:textSize="15sp"
-                        android:maxLines="5"
+                        android:textSize="14sp"
+                        android:fontFamily="sans-serif-medium"
+                        android:maxLines="4"
                         android:inputType="textMultiLine|textCapSentences"
-                        android:paddingVertical="10dp" />
+                        android:paddingHorizontal="7dp"
+                        android:paddingVertical="12dp" />
 
                     <ImageButton
                         android:id="@+id/sendButton"
-                        android:layout_width="42dp"
-                        android:layout_height="42dp"
-                        android:layout_gravity="bottom"
-                        android:layout_marginStart="2dp"
-                        android:background="@drawable/icon_btn_bg"
+                        android:layout_width="45dp"
+                        android:layout_height="45dp"
+                        android:layout_marginStart="7dp"
+                        android:background="@drawable/send_btn_bg"
                         android:src="@drawable/ic_send"
-                        android:contentDescription="@string/send"
-                        android:tint="@color/blue_deep"
-                        android:padding="10dp" />
+                        android:tint="#FFFFFF"
+                        android:padding="12dp"
+                        android:contentDescription="@string/send" />
                 </LinearLayout>
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
+                    android:layout_marginTop="7dp"
                     android:orientation="horizontal">
 
-                    <!-- Attach files / photos / PDFs -->
-                    <LinearLayout
-                        android:id="@+id/attachButton"
-                        style="@style/ToolPill">
-
-                        <ImageView
-                            android:layout_width="15dp"
-                            android:layout_height="15dp"
-                            android:src="@drawable/ic_attach"
-                            android:tint="@color/blue_glow" />
-
-                        <TextView
-                            style="@style/ToolPill.Label"
-                            android:text="@string/tool_file" />
+                    <LinearLayout android:id="@+id/attachButton" style="@style/ToolPill">
+                        <ImageView android:layout_width="14dp" android:layout_height="14dp"
+                            android:src="@drawable/ic_add" android:tint="@color/text_tool" android:contentDescription="@null" />
+                        <TextView style="@style/ToolPill.Label" android:text="@string/tool_file" />
                     </LinearLayout>
 
-                    <!-- Dictate a message -->
-                    <LinearLayout
-                        android:id="@+id/micButton"
-                        style="@style/ToolPill"
-                        android:layout_marginStart="8dp">
+                    <LinearLayout android:id="@+id/micButton" style="@style/ToolPill">
+                        <ImageView android:layout_width="14dp" android:layout_height="14dp"
+                            android:src="@drawable/ic_mic" android:tint="@color/text_tool" android:contentDescription="@null" />
+                        <TextView style="@style/ToolPill.Label" android:text="@string/tool_voice" />
+                    </LinearLayout>
 
-                        <ImageView
-                            android:layout_width="15dp"
-                            android:layout_height="15dp"
-                            android:src="@drawable/ic_mic"
-                            android:tint="@color/blue_deep" />
-
-                        <TextView
-                            style="@style/ToolPill.Label"
-                            android:text="@string/tool_voice" />
+                    <LinearLayout android:id="@+id/temporaryPill" style="@style/ToolPill">
+                        <ImageView android:id="@+id/temporaryPillIcon" android:layout_width="14dp" android:layout_height="14dp"
+                            android:src="@drawable/ic_temp_ring" android:tint="@color/text_tool" android:contentDescription="@null" />
+                        <TextView android:id="@+id/temporaryPillLabel" style="@style/ToolPill.Label" android:text="@string/tool_temporary_label" />
                     </LinearLayout>
                 </LinearLayout>
+            </LinearLayout>
+        </LinearLayout>
 
+        <!-- Floating glass bottom navigation: Home / Chat / History -->
+        <LinearLayout
+            android:id="@+id/bottomNav"
+            android:layout_width="0dp"
+            android:layout_height="68dp"
+            android:layout_marginHorizontal="12dp"
+            android:layout_marginBottom="12dp"
+            android:orientation="horizontal"
+            android:background="@drawable/bottom_nav_bg"
+            android:elevation="10dp"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent">
+
+            <LinearLayout android:id="@+id/navHome" style="@style/NavItem">
+                <ImageView android:layout_width="22dp" android:layout_height="22dp"
+                    android:src="@drawable/ic_nav_home" android:tint="@color/nav_item_tint"
+                    android:duplicateParentState="true" android:contentDescription="@null" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp" android:text="@string/nav_home" android:textSize="9sp"
+                    android:textColor="@color/nav_item_tint" android:duplicateParentState="true" />
             </LinearLayout>
 
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="8dp"
-                android:gravity="center"
-                android:text="@string/disclaimer_footer"
-                android:textColor="@color/text_muted"
-                android:textSize="10sp" />
+            <LinearLayout android:id="@+id/navChat" style="@style/NavItem">
+                <ImageView android:layout_width="22dp" android:layout_height="22dp"
+                    android:src="@drawable/ic_nav_chat" android:tint="@color/nav_item_tint"
+                    android:duplicateParentState="true" android:contentDescription="@null" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp" android:text="@string/nav_chat" android:textSize="9sp"
+                    android:textColor="@color/nav_item_tint" android:duplicateParentState="true" />
+            </LinearLayout>
 
+            <LinearLayout android:id="@+id/navHistory" style="@style/NavItem">
+                <ImageView android:layout_width="22dp" android:layout_height="22dp"
+                    android:src="@drawable/ic_nav_history" android:tint="@color/nav_item_tint"
+                    android:duplicateParentState="true" android:contentDescription="@null" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp" android:text="@string/nav_history" android:textSize="9sp"
+                    android:textColor="@color/nav_item_tint" android:duplicateParentState="true" />
+            </LinearLayout>
         </LinearLayout>
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 
-    <!-- ============================ Nav drawer (Recent conversations) ============================ -->
+    <!-- ====================== Drawer: recent conversations ====================== -->
     <LinearLayout
-        android:layout_width="280dp"
+        android:layout_width="320dp"
         android:layout_height="match_parent"
         android:layout_gravity="start"
         android:orientation="vertical"
-        android:background="@color/drawer_bg"
-        android:paddingHorizontal="14dp"
+        android:background="@drawable/drawer_panel_bg"
+        android:paddingHorizontal="15dp"
         android:paddingTop="20dp"
-        android:paddingBottom="14dp"
-        android:elevation="8dp"
+        android:paddingBottom="18dp"
+        android:elevation="16dp"
         android:fitsSystemWindows="true">
 
         <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
+            android:layout_marginBottom="17dp"
             android:gravity="center_vertical"
-            android:paddingHorizontal="4dp"
-            android:paddingBottom="18dp">
+            android:orientation="horizontal">
 
-            <FrameLayout
-                android:layout_width="32dp"
-                android:layout_height="32dp"
-                android:background="@drawable/brand_mark_bg">
+            <TextView
+                android:layout_width="34dp"
+                android:layout_height="34dp"
+                android:background="@drawable/brand_mark_bg"
+                android:gravity="center"
+                android:text="H"
+                android:textColor="#FFFFFF"
+                android:textSize="15sp"
+                android:fontFamily="sans-serif-medium"
+                android:textStyle="bold" />
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="10dp"
+                android:orientation="vertical">
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_gravity="center"
-                    android:text="H"
-                    android:textColor="#FFFFFF"
-                    android:textSize="14sp"
+                    android:text="@string/app_name"
+                    android:textColor="@color/text_primary"
+                    android:textSize="16sp"
+                    android:fontFamily="sans-serif-medium"
                     android:textStyle="bold" />
-            </FrameLayout>
 
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="10dp"
-                android:text="@string/app_name"
-                android:textColor="@color/text_primary"
-                android:textSize="15sp"
-                android:textStyle="bold" />
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <ImageView android:layout_width="12dp" android:layout_height="12dp"
+                        android:src="@drawable/dot_good" android:contentDescription="@null" />
+                    <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:layout_marginStart="3dp" android:text="@string/status_local"
+                        android:textColor="@color/text_dim" android:textSize="9sp" android:fontFamily="monospace" />
+                </LinearLayout>
+            </LinearLayout>
         </LinearLayout>
 
-        <LinearLayout
+        <TextView
             android:id="@+id/drawerNewChat"
             android:layout_width="match_parent"
-            android:layout_height="44dp"
-            android:orientation="horizontal"
-            android:gravity="center"
+            android:layout_height="45dp"
             android:background="@drawable/new_chat_bg"
+            android:gravity="center"
             android:clickable="true"
-            android:focusable="true">
-
-            <ImageView
-                android:layout_width="16dp"
-                android:layout_height="16dp"
-                android:src="@drawable/ic_add"
-                android:tint="@color/blue_glow" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
-                android:text="@string/new_chat"
-                android:textColor="@color/blue_glow"
-                android:textSize="14sp"
-                android:textStyle="bold" />
-        </LinearLayout>
+            android:focusable="true"
+            android:text="@string/drawer_new_chat"
+            android:textColor="@color/blue_glow"
+            android:textSize="12sp"
+            android:fontFamily="sans-serif-medium"
+            android:textStyle="bold" />
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="22dp"
-            android:layout_marginBottom="8dp"
-            android:paddingHorizontal="7dp"
+            android:layout_marginTop="23dp"
+            android:layout_marginBottom="9dp"
+            android:paddingHorizontal="5dp"
             android:text="@string/recent"
-            android:textColor="@color/text_muted"
-            android:textSize="11sp"
-            android:textStyle="bold"
+            android:textAllCaps="true"
+            android:textColor="#556275"
+            android:textSize="9sp"
+            android:fontFamily="monospace"
             android:letterSpacing="0.1" />
 
         <androidx.recyclerview.widget.RecyclerView
@@ -520,27 +636,21 @@
             android:layout_weight="1"
             android:clipToPadding="false" />
 
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:layout_marginTop="8dp"
-            android:layout_marginBottom="10dp"
-            android:background="@color/line" />
-
         <LinearLayout
             android:id="@+id/accountRow"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
             android:orientation="horizontal"
             android:gravity="center_vertical"
-            android:padding="8dp"
-            android:background="@drawable/history_item_bg"
+            android:padding="11dp"
+            android:background="@drawable/account_card_bg"
             android:clickable="true"
             android:focusable="true">
 
             <FrameLayout
-                android:layout_width="32dp"
-                android:layout_height="32dp"
+                android:layout_width="34dp"
+                android:layout_height="34dp"
                 android:background="@drawable/avatar_bg">
 
                 <TextView
@@ -549,17 +659,17 @@
                     android:layout_height="wrap_content"
                     android:layout_gravity="center"
                     android:text="A"
-                    android:textColor="@color/text_primary"
-                    android:textSize="12sp"
+                    android:textColor="#8FC8FF"
+                    android:textSize="13sp"
                     android:textStyle="bold" />
 
                 <ImageView
                     android:id="@+id/accountGuestIcon"
-                    android:layout_width="16dp"
-                    android:layout_height="16dp"
+                    android:layout_width="17dp"
+                    android:layout_height="17dp"
                     android:layout_gravity="center"
                     android:src="@drawable/ic_person"
-                    android:tint="@color/blue_deep"
+                    android:tint="#8FC8FF"
                     android:visibility="gone"
                     android:contentDescription="@null" />
             </FrameLayout>
@@ -575,19 +685,27 @@
                     android:id="@+id/accountName"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="My Agent"
+                    android:text="Guest"
                     android:textColor="@color/text_primary"
-                    android:textSize="12sp"
+                    android:textSize="11sp"
                     android:textStyle="bold" />
 
                 <TextView
                     android:id="@+id/accountSubtitle"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Personal workspace"
-                    android:textColor="@color/text_muted"
-                    android:textSize="10sp" />
+                    android:layout_marginTop="2dp"
+                    android:text="Profile &amp; Autonomous Control"
+                    android:textColor="#5F6C7E"
+                    android:textSize="9sp" />
             </LinearLayout>
+
+            <ImageView
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:src="@drawable/ic_chevron_right"
+                android:tint="#526071"
+                android:contentDescription="@null" />
         </LinearLayout>
 
     </LinearLayout>

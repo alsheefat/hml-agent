@@ -2,59 +2,47 @@
 <resources>
     <color name="ic_launcher_background">#000628</color>
 
-    <!-- Core palette -->
-    <color name="bg_black">#000000</color>
-    <color name="surface_raised">#0D0D12</color>
+    <!-- Palette taken from the HML Agent UI concept (hml_agent_stage17_ui.html) -->
+    <color name="bg_black">#050608</color>          <!-- concept bg -->
+    <color name="surface_raised">#0B0E13</color>    <!-- concept panel -->
+    <color name="panel_icon">#0D1118</color>        <!-- top-bar icon buttons -->
+    <color name="panel_tool">#111721</color>        <!-- tool pills -->
+    <color name="panel_chip">#0B0F15</color>        <!-- command chips -->
+    <color name="panel_reality">#090D12</color>     <!-- Autonomous Control card -->
+    <color name="panel_drawer">#080B10</color>      <!-- side drawer -->
+    <color name="panel_account">#0C1016</color>     <!-- account card -->
 
-    <!-- Deep blue (from user's spec) - used for accents, borders, bubbles -->
-    <color name="blue_deep">#1135b8</color>
+    <!-- Blues used by the concept -->
+    <color name="blue_bright">#248CFF</color>
+    <color name="blue_deep">#1B3148</color>         <!-- soft blue outline (new-chat border) -->
+    <color name="blue_glow">#73BDFF</color>         <!-- accent text / active icons -->
+    <color name="blue_pale">#B9DCFF</color>         <!-- active bottom-nav item -->
+    <color name="good">#46E6A0</color>              <!-- "ready" status dot -->
 
-    <!-- Bright glow blue - used for highlights, buttons, the accent that actually needs to pop.
-         Nudged a shade lighter/more vivid than the first pass so buttons and active states
-         feel a little more alive against all the black. -->
-    <color name="blue_bright">#3D74FF</color>
-    <color name="blue_glow">#5E89FF</color>
+    <!-- Text -->
+    <color name="text_primary">#F5F7FB</color>
+    <color name="text_secondary">#B6C0CE</color>
+    <color name="text_muted">#8792A3</color>        <!-- concept muted -->
+    <color name="text_dim">#647184</color>
+    <color name="text_icon">#A9B5C7</color>
+    <color name="text_tool">#8390A1</color>
+    <color name="text_hint">#5F6979</color>
 
-    <!-- Halo behind the small "online" status dot next to the app title. -->
-    <color name="status_dot_halo">#333D74FF</color>
+    <!-- Borders -->
+    <color name="line">#1B2330</color>              <!-- concept line -->
+    <color name="line_icon">#1B2532</color>
+    <color name="line_composer">#1D2735</color>
+    <color name="line_focus">#28547D</color>
+    <color name="hover_tint">#1F248CFF</color>
+    <color name="text_highlight">#4D248CFF</color>
 
-    <!-- Text - white/near-white for actual readability on black -->
-    <color name="text_primary">#F5F6FA</color>
-    <color name="text_secondary">#9AA8D6</color>
-    <!-- Was #5A6699 — too dark/desaturated against pure black to read comfortably
-         (hints, subtitles, disclaimer footer): ~3.8:1 contrast, under the readable
-         threshold. Brightened to ~5.5:1 while keeping it a clear step down from
-         text_secondary (~9:1), so the two-tier hierarchy still reads. -->
-    <color name="text_muted">#7681B0</color>
+    <!-- Bubbles -->
+    <color name="bubble_user">#0C3D72</color>
+    <color name="bubble_agent">#0D1219</color>
+    <color name="bubble_agent_border">#182331</color>
+    <color name="bubble_agent_text">#C5CEDA</color>
+    <color name="bubble_user_text">#E9F5FF</color>
 
-    <!-- Hairline / hover tints shared by the sidebar, dividers and icon buttons,
-         so every subtle surface in the app uses the same low-opacity blue. -->
-    <color name="line">#471135B8</color>
-    <color name="hover_tint">#1F1135B8</color>
-
-    <!-- Background behind selected text when copying a message (same blue_deep family,
-         just translucent enough that the text underneath stays readable). -->
-    <color name="text_highlight">#4D1135B8</color>
-
-    <!-- Message bubbles.
-         Agent bubble: near-black fill + a solid deep-blue hairline (unchanged, already matched the theme).
-         User bubble: was previously a solid, fully-opaque bright blue block with white text — it read as a
-         loud "stock chat bubble" that clashed with the low-contrast glowing-black theme everywhere else.
-         It's now a soft, translucent blue tint (same family as the hover/line tints) with a glowing hairline
-         — given a touch more depth/opacity here than the very first pass so it still reads clearly as
-         "yours" at a glance, without going back to the old loud block. -->
-    <color name="bubble_user">#331135B8</color>
-    <color name="bubble_user_border">#755E89FF</color>
-    <color name="bubble_agent">#12131A</color>
-
-    <!-- Drawer / history -->
-    <color name="drawer_bg">#000000</color>
-
-    <!-- Attachment chip background (small solid fill — chips aren't part of the
-         outline-only button system since they're informational, not tappable actions) -->
-    <color name="chip_bg">#0D0D12</color>
-
-    <!-- For destructive actions (delete conversation). Used directly and also wired as
-         the Material colorError role in themes.xml. -->
-    <color name="color_error">#FF6B6B</color>
+    <color name="chip_bg">#111721</color>
+    <color name="color_error">#FF667A</color>
 </resources>

@@ -4,25 +4,26 @@
     android:layout_height="wrap_content"
     android:orientation="horizontal"
     android:gravity="end"
-    android:paddingVertical="6dp">
+    android:paddingVertical="7dp">
 
     <LinearLayout
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginStart="60dp"
+        android:layout_marginStart="56dp"
         android:orientation="vertical"
         android:background="@drawable/bubble_user"
-        android:paddingHorizontal="16dp"
+        android:paddingHorizontal="14dp"
         android:paddingVertical="12dp">
 
         <TextView
             android:id="@+id/messageText"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:textColor="@color/text_primary"
+            android:textColor="@color/bubble_user_text"
+            android:lineSpacingMultiplier="1.2"
             android:textIsSelectable="true"
             android:textCursorDrawable="@null"
-            android:textSize="15sp" />
+            android:textSize="14sp" />
 
         <TextView
             android:id="@+id/attachmentsLabel"

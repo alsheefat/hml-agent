@@ -62,7 +62,7 @@
     <string name="tool_temporary_label">Temporary</string>
     <string name="quick_commands_title">REAL COMMANDS</string>
     <string name="chip_flashlight_title">Flashlight</string>
-    <string name="chip_flashlight_sub">Turn it on or off</string>
+    <string name="chip_flashlight_sub">Turn it on / off</string>
     <string name="chip_apps_title">Open apps</string>
     <string name="chip_apps_sub">Launch an installed app</string>
     <string name="chip_music_title">Music</string>
@@ -71,7 +71,7 @@
     <string name="chip_youtube_sub">Search or play</string>
     <string name="chip_reminder_title">Reminder</string>
     <string name="chip_reminder_sub">Schedule a reminder</string>
-    <string name="chip_phone_title">Phone &amp; SMS</string>
+    <string name="chip_phone_title">Phone / SMS</string>
     <string name="chip_phone_sub">Call or text a contact</string>
     <string name="chip_flashlight_command">Turn on my flashlight</string>
     <string name="chip_apps_command">Open YouTube</string>
@@ -93,4 +93,22 @@
     <string name="autonomous_control_off">Off — full autonomous control is disabled</string>
     <string name="autonomous_control_on">On — HML Agent can control your screen when asked</string>
     <string name="enable_autonomous_control">Enable in Settings</string>
+
+    <!-- UI concept: nav, status, chat header, autonomous task card -->
+    <string name="nav_home">Home</string>
+    <string name="nav_chat">Chat</string>
+    <string name="nav_history">History</string>
+    <string name="status_ready">READY</string>
+    <string name="status_local">LOCAL APP</string>
+    <string name="new_conversation">New conversation</string>
+    <string name="temporary_badge">TEMPORARY</string>
+    <string name="task_title">Autonomous task</string>
+    <string name="task_ready">READY</string>
+    <string name="task_live">LIVE</string>
+    <string name="task_done">DONE</string>
+    <string name="task_step_1">Read current screen</string>
+    <string name="task_step_2">Plan the next supported action</string>
+    <string name="task_step_3">Execute → read again</string>
+    <string name="drawer_new_chat">＋ New chat</string>
+    <string name="account_subtitle">Profile &amp; Autonomous Control</string>
 </resources>

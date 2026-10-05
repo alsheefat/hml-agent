@@ -4,7 +4,10 @@ import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.LinearGradient
 import android.graphics.PorterDuff
+import android.graphics.Rect
+import android.graphics.Shader
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -71,6 +74,22 @@ class MainActivity : AppCompatActivity() {
     private lateinit var temporaryChatButton: ImageButton
     private lateinit var temporaryBanner: TextView
     private lateinit var homeContentView: View
+    private lateinit var chatHeader: View
+    private lateinit var chatTitle: TextView
+    private lateinit var composerWrap: View
+    private lateinit var bottomNav: View
+    private lateinit var navHome: View
+    private lateinit var navChat: View
+    private lateinit var temporaryPill: View
+    private lateinit var temporaryPillIcon: ImageView
+    private lateinit var temporaryPillLabel: TextView
+    private lateinit var taskCard: View
+    private lateinit var taskLive: TextView
+    private lateinit var taskStatus: TextView
+
+    // True = the Home tab is selected. The home screen also shows by itself whenever the
+    // conversation is empty, so a fresh chat always opens on Home.
+    private var forceHome = true
 
     // Files picked via the "+" button, waiting to be sent with the next message.
     private val pendingAttachments = mutableListOf<Uri>()
@@ -133,6 +152,18 @@ class MainActivity : AppCompatActivity() {
         temporaryChatButton = findViewById(R.id.temporaryChatButton)
         temporaryBanner = findViewById(R.id.temporaryBanner)
         homeContentView = findViewById(R.id.homeContentView)
+        chatHeader = findViewById(R.id.chatHeader)
+        chatTitle = findViewById(R.id.chatTitle)
+        composerWrap = findViewById(R.id.composerWrap)
+        bottomNav = findViewById(R.id.bottomNav)
+        navHome = findViewById(R.id.navHome)
+        navChat = findViewById(R.id.navChat)
+        temporaryPill = findViewById(R.id.temporaryPill)
+        temporaryPillIcon = findViewById(R.id.temporaryPillIcon)
+        temporaryPillLabel = findViewById(R.id.temporaryPillLabel)
+        taskCard = findViewById(R.id.taskCard)
+        taskLive = findViewById(R.id.taskLive)
+        taskStatus = findViewById(R.id.taskStatus)
 
         attachmentsScroll = findViewById(R.id.attachmentsScroll)
         attachmentsPreview = findViewById(R.id.attachmentsPreview)
@@ -159,6 +190,85 @@ class MainActivity : AppCompatActivity() {
         }
 
         micButton.setOnClickListener { startVoiceInput() }
+        temporaryPill.setOnClickListener { startTemporaryChat() }
+
+        // Floating bottom navigation: Home / Chat / History
+        navHome.setOnClickListener { forceHome = true; updateHomeVisibility() }
+        navChat.setOnClickListener { forceHome = false; updateHomeVisibility() }
+        findViewById<View>(R.id.navHistory).setOnClickListener {
+            drawerLayout.openDrawer(GravityCompat.START)
+        }
+
+        // Glass composer picks up the focus border from the concept.
+        input.setOnFocusChangeListener { _, hasFocus -> composerWrap.isActivated = hasFocus }
+
+        // The floating nav would sit on top of the keyboard — hide it while typing.
+        drawerLayout.viewTreeObserver.addOnGlobalLayoutListener {
+            val visible = Rect()
+            drawerLayout.getWindowVisibleDisplayFrame(visible)
+            val fullHeight = drawerLayout.rootView.height
+            val keyboardOpen = fullHeight - visible.bottom > fullHeight * 0.15
+            bottomNav.visibility = if (keyboardOpen) View.GONE else View.VISIBLE
+        }
+
+        applyHeadlineGradient()
+        updateTemporaryUi()
+    }
+
+    /** "HML handles it." — white → sky → blue gradient text, as in the concept's h1 span. */
+    private fun applyHeadlineGradient() {
+        val accent = findViewById<TextView>(R.id.homeHeadlineAccent)
+        accent.post {
+            val width = accent.paint.measureText(accent.text.toString())
+            accent.paint.shader = LinearGradient(
+                0f, 0f, width, 0f,
+                intArrayOf(0xFFFFFFFF.toInt(), 0xFF77C7FF.toInt(), 0xFF278DFF.toInt()),
+                floatArrayOf(0.1f, 0.62f, 1f),
+                Shader.TileMode.CLAMP
+            )
+            accent.invalidate()
+        }
+    }
+
+    // ---- Autonomous task card (concept's .task): driven by the runner's existing callbacks ----
+
+    private fun showTaskCard() {
+        taskCard.visibility = View.VISIBLE
+        taskLive.text = getString(R.string.task_live)
+        taskStatus.text = ""
+        setTaskSteps(now = 1, allDone = false)
+    }
+
+    private fun updateTaskCard(status: String) {
+        taskStatus.text = status
+        setTaskSteps(now = if (status.contains("Reading")) 1 else 3, allDone = false)
+    }
+
+    private fun finishTaskCard() {
+        taskLive.text = getString(R.string.task_done)
+        setTaskSteps(now = 4, allDone = true)
+        mainHandler.postDelayed({ taskCard.visibility = View.GONE }, 4000)
+    }
+
+    private fun setTaskSteps(now: Int, allDone: Boolean) {
+        val checks = intArrayOf(R.id.taskCheck1, R.id.taskCheck2, R.id.taskCheck3)
+        val labels = intArrayOf(R.id.taskLabel1, R.id.taskLabel2, R.id.taskLabel3)
+        for (i in 0..2) {
+            val n = i + 1
+            val check = findViewById<TextView>(checks[i])
+            val label = findViewById<TextView>(labels[i])
+            when {
+                allDone || n < now -> {
+                    check.text = "✓"; check.setTextColor(0xFF55E6A4.toInt()); label.setTextColor(0xFFAAB8C8.toInt())
+                }
+                n == now -> {
+                    check.text = n.toString(); check.setTextColor(0xFF69BBFF.toInt()); label.setTextColor(0xFF73BCFF.toInt())
+                }
+                else -> {
+                    check.text = n.toString(); check.setTextColor(0xFF718094.toInt()); label.setTextColor(0xFF718094.toInt())
+                }
+            }
+        }
     }
 
     private fun requestDevicePermissionsIfNeeded() {
@@ -250,6 +360,7 @@ class MainActivity : AppCompatActivity() {
         intent.removeExtra(EXTRA_PENDING_AUTONOMOUS_GOAL)
         pendingGoal?.let { goal ->
             adapter.addMessage(ChatMessage("⏰ Running scheduled task: $goal", isUser = false))
+            forceHome = false
             updateHomeVisibility()
             scrollToBottom()
             adapter.addMessage(ChatMessage("…", isUser = false))
@@ -412,15 +523,23 @@ class MainActivity : AppCompatActivity() {
     /** Shows the home screen (headline + chips) while the chat is empty, and the
      * message list once there is at least one message. */
     private fun updateHomeVisibility() {
-        val empty = messages.isEmpty()
-        homeContentView.visibility = if (empty) View.VISIBLE else View.GONE
-        messageList.visibility = if (empty) View.GONE else View.VISIBLE
+        val showHome = messages.isEmpty() || forceHome
+        homeContentView.visibility = if (showHome) View.VISIBLE else View.GONE
+        messageList.visibility = if (showHome) View.GONE else View.VISIBLE
+        // Chat header (title + TEMPORARY badge) belongs to the chat screen, but a temporary
+        // chat also shows it on Home so the mode is never invisible.
+        chatHeader.visibility = if (!showHome || isTemporaryChat) View.VISIBLE else View.GONE
+        chatTitle.text = messages.firstOrNull { it.isUser }?.text?.take(40)
+            ?: getString(R.string.new_conversation)
+        navHome.isSelected = showHome
+        navChat.isSelected = !showHome
     }
 
     private fun setupAccountRow(accountRow: View) {
         val name = SessionManager.getName(this)
         findViewById<TextView>(R.id.accountName).text = name
-        findViewById<TextView>(R.id.accountSubtitle).text = SessionManager.getSubtitle(this)
+        findViewById<TextView>(R.id.accountSubtitle).text =
+            if (name == "Guest") getString(R.string.account_subtitle) else SessionManager.getSubtitle(this)
 
         val initialView = findViewById<TextView>(R.id.accountInitial)
         val guestIconView = findViewById<ImageView>(R.id.accountGuestIcon)
@@ -509,6 +628,7 @@ class MainActivity : AppCompatActivity() {
         persistCurrentConversation()
         currentConversationId = UUID.randomUUID().toString()
         isTemporaryChat = false
+        forceHome = true
         adapter.clear()
         updateHomeVisibility()
         clearAttachments()
@@ -520,6 +640,7 @@ class MainActivity : AppCompatActivity() {
         persistCurrentConversation()
         currentConversationId = UUID.randomUUID().toString()
         isTemporaryChat = true
+        forceHome = true
         adapter.clear()
         updateHomeVisibility()
         clearAttachments()
@@ -530,18 +651,24 @@ class MainActivity : AppCompatActivity() {
 
     private fun updateTemporaryUi() {
         temporaryBanner.visibility = if (isTemporaryChat) View.VISIBLE else View.GONE
-        // Ring background (temporary_btn_bg, keyed off isActivated below) gets a thicker
-        // stroke when active; icon brightens to white so "on" is unmistakable without
-        // introducing a second color into the otherwise all-blue_glow button system.
-        val tint = if (isTemporaryChat) R.color.text_primary else R.color.blue_glow
-        temporaryChatButton.setColorFilter(ContextCompat.getColor(this, tint), PorterDuff.Mode.SRC_IN)
+        val active = ContextCompat.getColor(this, R.color.blue_glow)
+        temporaryChatButton.setColorFilter(
+            if (isTemporaryChat) active else ContextCompat.getColor(this, R.color.text_icon),
+            PorterDuff.Mode.SRC_IN
+        )
         temporaryChatButton.isActivated = isTemporaryChat
+        temporaryPill.isActivated = isTemporaryChat
+        val toolColor = if (isTemporaryChat) active else ContextCompat.getColor(this, R.color.text_tool)
+        temporaryPillIcon.setColorFilter(toolColor, PorterDuff.Mode.SRC_IN)
+        temporaryPillLabel.setTextColor(toolColor)
+        updateHomeVisibility()
     }
 
     private fun loadConversation(conversation: Conversation) {
         persistCurrentConversation()
         currentConversationId = conversation.id
         isTemporaryChat = false
+        forceHome = false
         adapter.setMessages(conversation.messages)
         updateHomeVisibility()
         clearAttachments()
@@ -618,6 +745,7 @@ class MainActivity : AppCompatActivity() {
         UserProfileStore.maybeLearnNameFrom(this, text)
         val attachmentNames = pendingAttachments.map { queryFileName(it) }
         adapter.addMessage(ChatMessage(text, isUser = true, attachments = attachmentNames))
+        forceHome = false
         updateHomeVisibility()
         clearAttachments()
         scrollToBottom()
@@ -724,6 +852,7 @@ class MainActivity : AppCompatActivity() {
 
         replaceMessage(convId, thinkingIndex, "🤖 Taking control to work on this...", persist = false)
         OverlayBubble.show(this, "Working on it...")
+        showTaskCard()
 
         val runner = AutonomousTaskRunner(
             context = this,
@@ -731,10 +860,12 @@ class MainActivity : AppCompatActivity() {
                 // Status ticks aren't worth a disk write each — only the final result is saved.
                 replaceMessage(convId, thinkingIndex, status, persist = false)
                 OverlayBubble.show(this, status)
+                updateTaskCard(status)
             },
             onFinished = { finalMessage ->
                 replaceMessage(convId, thinkingIndex, finalMessage)
                 OverlayBubble.hide(this)
+                finishTaskCard()
             }
         )
         runner.start(goal)
