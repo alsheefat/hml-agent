@@ -2,5 +2,5 @@
     <path android:fillColor="#00000000" android:strokeColor="#73BDFF" android:strokeWidth="1.7" android:strokeLineCap="round" android:pathData="M8.1,5.2A8,8 0,1 0,18.8,7.1"/>
     <path android:fillColor="#00000000" android:strokeColor="#73BDFF" android:strokeWidth="1.7" android:strokeLineCap="round" android:pathData="M17.2,4.8h2.5v2.5"/>
     <path android:fillColor="#00000000" android:strokeColor="#FFFFFF" android:strokeWidth="1.7" android:strokeLineCap="round" android:pathData="M12,8.2v3.9l2.4,1.5"/>
-    <circle android:fillColor="#73BDFF" android:cx="12" android:cy="12" android:radius="1.1"/>
+    <path android:fillColor="#73BDFF" android:pathData="M13.1,12a1.1,1.1 0,1 1,-2.2,0a1.1,1.1 0,1 1,2.2,0Z"/>
 </vector>
