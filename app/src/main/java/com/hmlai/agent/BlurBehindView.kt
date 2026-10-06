@@ -53,6 +53,20 @@ class BlurBehindView @JvmOverloads constructor(
         }
     }
 
+    /**
+     * IMPORTANT: this view must never decide the height of its parent. A plain View reports the
+     * full available height when its parent measures it with AT_MOST, which made the whole
+     * composer container as tall as the screen (bar jumped to the top, everything got blurred).
+     * So: report 0 height until the parent gives an EXACT size (FrameLayout re-measures
+     * match_parent children with the final height of the bar), then fill it.
+     */
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        val w = MeasureSpec.getSize(widthMeasureSpec)
+        val h = if (MeasureSpec.getMode(heightMeasureSpec) == MeasureSpec.EXACTLY)
+            MeasureSpec.getSize(heightMeasureSpec) else 0
+        setMeasuredDimension(w, h)
+    }
+
     fun setSource(view: View?) {
         if (source === view) return
         source = view

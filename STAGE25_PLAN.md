@@ -6,3 +6,6 @@
   temporary-chat mode is shown by the highlighted temporary button.
 - Bottom: no fade. Chat scrolls under the writing bar; inside the bar the chat is shown blurred
   (BlurBehindView, Android 12+). Older Android uses a near-opaque bar.
+
+## Fix (stage 26)
+- BlurBehindView.onMeasure no longer inflates its FrameLayout parent (bar was full-screen tall).
