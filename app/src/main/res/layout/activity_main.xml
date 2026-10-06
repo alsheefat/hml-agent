@@ -14,8 +14,8 @@
         <!-- The app background itself provides the soft upper glow. There is intentionally
              no full-width header surface here: each top control owns its own rounded surface. -->
 
-        <!-- Starts at the very top of the screen so chat content scrolls UNDER the top controls.
-             FadeTopRecyclerView fades that content out under the icons (no overlay rectangle). -->
+        <!-- Full-screen chat list: it scrolls under the top icons (fading out from the very top
+             edge) and under the glass composer / navigation bar. Padding is set in code. -->
         <com.hmlai.agent.FadeTopRecyclerView
             android:id="@+id/messageList"
             android:layout_width="0dp"
@@ -26,7 +26,7 @@
             android:paddingBottom="12dp"
             android:visibility="gone"
             app:layout_constraintTop_toTopOf="parent"
-            app:layout_constraintBottom_toTopOf="@id/composerContainer"
+            app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent" />
 
@@ -206,57 +206,6 @@
                 android:contentDescription="@string/new_chat" />
         </LinearLayout>
 
-        <!-- Conversation title appears only when it adds context. -->
-        <LinearLayout
-            android:id="@+id/chatHeader"
-            android:layout_width="0dp"
-            android:layout_height="36dp"
-            android:gravity="center_vertical"
-            android:paddingHorizontal="20dp"
-            android:visibility="gone"
-            app:layout_constraintTop_toBottomOf="@id/topBar"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintEnd_toEndOf="parent">
-
-            <TextView
-                android:id="@+id/chatTitle"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:ellipsize="end"
-                android:maxLines="1"
-                android:textColor="@color/text_secondary"
-                android:textSize="12sp"
-                android:fontFamily="sans-serif-medium" />
-
-            <TextView
-                android:id="@+id/temporaryBanner"
-                android:layout_width="wrap_content"
-                android:layout_height="24dp"
-                android:background="@drawable/temp_badge_bg"
-                android:gravity="center"
-                android:paddingHorizontal="8dp"
-                android:text="@string/temporary_badge"
-                android:textColor="@color/blue_glow"
-                android:textSize="8sp"
-                android:fontFamily="monospace"
-                android:visibility="gone" />
-        </LinearLayout>
-
-        <!-- Soft fade of chat content into the composer area (moves with the composer). -->
-        <View
-            android:id="@+id/composerFade"
-            android:layout_width="0dp"
-            android:layout_height="26dp"
-            android:background="@drawable/composer_top_fade"
-            android:clickable="false"
-            android:focusable="false"
-            app:layout_constraintBottom_toTopOf="@id/composerContainer"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintEnd_toEndOf="parent" />
-
-        <!-- Bottom-anchored. Solid background so nothing shows through behind/under the bar
-             (including the system navigation bar area, which is added as bottom padding). -->
         <LinearLayout
             android:id="@+id/composerContainer"
             android:layout_width="0dp"
@@ -264,7 +213,7 @@
             android:orientation="vertical"
             android:paddingTop="6dp"
             android:paddingBottom="8dp"
-            android:background="@color/bg_black"
+            android:background="@android:color/transparent"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent">
@@ -364,55 +313,69 @@
                     android:orientation="horizontal" />
             </HorizontalScrollView>
 
-            <LinearLayout
-                android:id="@+id/composerWrap"
+            <FrameLayout
+                android:id="@+id/composerFrame"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginHorizontal="10dp"
-                android:orientation="horizontal"
-                android:gravity="center_vertical"
-                android:background="@drawable/composer_glass_bg"
-                android:paddingHorizontal="5dp"
-                android:paddingVertical="4dp">
+                android:layout_marginHorizontal="10dp">
 
-                <ImageButton
-                    android:id="@+id/attachButton"
-                    style="@style/ComposerAttachButton"
-                    android:src="@drawable/ic_attach"
-                    android:contentDescription="@string/attach_file" />
+                <!-- Blurred copy of the chat shown THROUGH the bar (glass). Same bounds as the bar. -->
+                <com.hmlai.agent.BlurBehindView
+                    android:id="@+id/composerBlur"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:clickable="false"
+                    android:focusable="false" />
 
-                <EditText
-                    android:id="@+id/messageInput"
-                    android:layout_width="0dp"
+                <LinearLayout
+                    android:id="@+id/composerWrap"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:minHeight="38dp"
-                    android:maxHeight="110dp"
-                    android:background="@null"
-                    android:hint="@string/message_hint"
-                    android:textColorHint="@color/text_hint"
-                    android:textColor="@color/text_primary"
-                    android:textSize="16sp"
-                    android:fontFamily="sans-serif"
-                    android:maxLines="4"
-                    android:inputType="textMultiLine|textCapSentences"
-                    android:paddingHorizontal="6dp"
-                    android:paddingVertical="5dp" />
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:background="@drawable/composer_glass_bg"
+                    android:paddingHorizontal="5dp"
+                    android:paddingVertical="4dp">
 
-                <ImageButton
-                    android:id="@+id/micButton"
-                    style="@style/ComposerVoiceButton"
-                    android:src="@drawable/ic_voice_wave"
-                    android:contentDescription="@string/voice_input" />
+                    <ImageButton
+                        android:id="@+id/attachButton"
+                        style="@style/ComposerAttachButton"
+                        android:src="@drawable/ic_attach"
+                        android:contentDescription="@string/attach_file" />
 
-                <ImageButton
-                    android:id="@+id/sendButton"
-                    style="@style/ComposerSendButton"
-                    android:background="@drawable/send_btn_bg"
-                    android:src="@drawable/ic_send"
-                    android:tint="#FFFFFF"
-                    android:contentDescription="@string/send" />
-            </LinearLayout>
+                    <EditText
+                        android:id="@+id/messageInput"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:minHeight="38dp"
+                        android:maxHeight="110dp"
+                        android:background="@null"
+                        android:hint="@string/message_hint"
+                        android:textColorHint="@color/text_hint"
+                        android:textColor="@color/text_primary"
+                        android:textSize="16sp"
+                        android:fontFamily="sans-serif"
+                        android:maxLines="4"
+                        android:inputType="textMultiLine|textCapSentences"
+                        android:paddingHorizontal="6dp"
+                        android:paddingVertical="5dp" />
+
+                    <ImageButton
+                        android:id="@+id/micButton"
+                        style="@style/ComposerVoiceButton"
+                        android:src="@drawable/ic_voice_wave"
+                        android:contentDescription="@string/voice_input" />
+
+                    <ImageButton
+                        android:id="@+id/sendButton"
+                        style="@style/ComposerSendButton"
+                        android:background="@drawable/send_btn_bg"
+                        android:src="@drawable/ic_send"
+                        android:tint="#FFFFFF"
+                        android:contentDescription="@string/send" />
+                </LinearLayout>
+            </FrameLayout>
         </LinearLayout>
 
     </androidx.constraintlayout.widget.ConstraintLayout>

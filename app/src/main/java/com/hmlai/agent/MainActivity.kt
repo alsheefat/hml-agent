@@ -82,12 +82,11 @@ class MainActivity : AppCompatActivity() {
     private var currentConversationId: String = UUID.randomUUID().toString()
     private var isTemporaryChat = false
     private lateinit var temporaryChatButton: ImageButton
-    private lateinit var temporaryBanner: TextView
     private lateinit var homeContentView: View
-    private lateinit var chatHeader: View
-    private lateinit var chatTitle: TextView
     private lateinit var composerWrap: View
-    private lateinit var composerFade: View
+    private lateinit var composerBlur: BlurBehindView
+    private lateinit var composerContainerView: View
+    private var imeLift = 0
     private lateinit var topBarView: View
     private lateinit var taskCard: View
     private lateinit var taskLive: TextView
@@ -129,6 +128,23 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         WindowCompat.setDecorFitsSystemWindows(window, false)
+        // Fully transparent status + navigation bars (no black bar, no automatic scrim).
+        window.statusBarColor = Color.TRANSPARENT
+        window.navigationBarColor = Color.TRANSPARENT
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            window.isNavigationBarContrastEnforced = false
+            window.isStatusBarContrastEnforced = false
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            window.attributes = window.attributes.apply {
+                layoutInDisplayCutoutMode =
+                    android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+            }
+        }
+        WindowCompat.getInsetsController(window, window.decorView).apply {
+            isAppearanceLightStatusBars = false      // dark UI -> light clock/icons
+            isAppearanceLightNavigationBars = false
+        }
         setContentView(R.layout.activity_main)
         UserProfileStore.seedDefaultsIfEmpty(this)
 
@@ -151,16 +167,30 @@ class MainActivity : AppCompatActivity() {
         val drawerNewChat = findViewById<View>(R.id.drawerNewChat)
         val accountRow = findViewById<View>(R.id.accountRow)
         temporaryChatButton = findViewById(R.id.temporaryChatButton)
-        temporaryBanner = findViewById(R.id.temporaryBanner)
         homeContentView = findViewById(R.id.homeContentView)
-        chatHeader = findViewById(R.id.chatHeader)
-        chatTitle = findViewById(R.id.chatTitle)
         composerWrap = findViewById(R.id.composerWrap)
-        composerFade = findViewById(R.id.composerFade)
+        composerBlur = findViewById(R.id.composerBlur)
+        composerContainerView = findViewById(R.id.composerContainer)
         topBarView = findViewById(R.id.topBar)
-        // Keep the list's top padding + fade zone matched to the real height of the top
-        // controls (status bar + icons + optional chat title), after every layout pass.
-        messageList.viewTreeObserver.addOnGlobalLayoutListener { updateTopZone() }
+        composerBlur.setSource(homeContentView)
+        // Keep list padding (top controls / composer) and the top fade matched to real sizes.
+        messageList.viewTreeObserver.addOnGlobalLayoutListener { updateListInsets() }
+        // The glass bar re-samples the chat whenever the content behind it can have changed.
+        messageList.addOnScrollListener(object : RecyclerView.OnScrollListener() {
+            override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) = composerBlur.refresh()
+        })
+        adapter.registerAdapterDataObserver(object : RecyclerView.AdapterDataObserver() {
+            override fun onChanged() { composerBlur.post { composerBlur.refresh() } }
+            override fun onItemRangeInserted(positionStart: Int, itemCount: Int) { composerBlur.post { composerBlur.refresh() } }
+            override fun onItemRangeChanged(positionStart: Int, itemCount: Int) { composerBlur.post { composerBlur.refresh() } }
+            override fun onItemRangeRemoved(positionStart: Int, itemCount: Int) { composerBlur.post { composerBlur.refresh() } }
+        })
+        messageList.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> composerBlur.refresh() }
+        homeContentView.setOnScrollChangeListener { _, _, _, _, _ -> composerBlur.refresh() }
+        findViewById<View>(R.id.composerContainer).addOnLayoutChangeListener { _, _, top, _, bottom, _, oldTop, _, oldBottom ->
+            if (bottom - top != oldBottom - oldTop) updateListInsets()
+            composerBlur.refresh()
+        }
         taskCard = findViewById(R.id.taskCard)
         taskLive = findViewById(R.id.taskLive)
         taskStatus = findViewById(R.id.taskStatus)
@@ -209,7 +239,6 @@ class MainActivity : AppCompatActivity() {
         // above the keyboard. The message list keeps its own layout bounds.
         val topBar = findViewById<View>(R.id.topBar)
         val composerContainer = findViewById<View>(R.id.composerContainer)
-        val baseMessagePaddingBottom = messageList.paddingBottom
         ViewCompat.setOnApplyWindowInsetsListener(drawerLayout) { _, insets ->
             val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             val ime = insets.getInsets(WindowInsetsCompat.Type.ime())
@@ -228,21 +257,9 @@ class MainActivity : AppCompatActivity() {
             }
             val lift = (ime.bottom - navBottom).coerceAtLeast(0)
             composerContainer.translationY = -lift.toFloat()
-            composerFade.translationY = -lift.toFloat()
-
-            // Keep the latest message above the keyboard + composer when the IME is open,
-            // without translating the chat itself. The view's actual bounds stay put.
-            fun updateMessagePadding() {
-                val extra = if (lift > 0) lift + composerContainer.height + dp(8) else 0
-                messageList.setPadding(
-                    messageList.paddingLeft,
-                    messageList.paddingTop,
-                    messageList.paddingRight,
-                    baseMessagePaddingBottom + extra
-                )
-            }
-            updateMessagePadding()
-            if (lift > 0) composerContainer.post { updateMessagePadding() }
+            imeLift = lift
+            updateListInsets()
+            composerBlur.refresh()
 
             // The drawer is edge-to-edge too; only its safe system-bar insets affect its
             // internal padding. The IME must never resize or lift the drawer.
@@ -260,22 +277,21 @@ class MainActivity : AppCompatActivity() {
         updateTemporaryUi()
     }
 
-    /** Chat content is allowed to scroll under the top controls; it fades out beneath them.
-     * Padding keeps the first message just below the controls when the list is at rest. */
-    private fun updateTopZone() {
-        if (!::messageList.isInitialized || !::topBarView.isInitialized) return
-        val controlsBottom = if (chatHeader.visibility == View.VISIBLE && chatHeader.height > 0)
-            chatHeader.bottom else topBarView.bottom
+    /** The chat list is full-screen: it scrolls under the top icons and under the glass composer.
+     * Padding keeps the first / last message clear of them when the list is at rest, and the
+     * top fade starts at the very top edge of the screen (behind the clock / network icons). */
+    private fun updateListInsets() {
+        if (!::messageList.isInitialized || !::topBarView.isInitialized || !::composerContainerView.isInitialized) return
+        val controlsBottom = topBarView.bottom
         if (controlsBottom <= 0) return
-        val ramp = dp(20)
-        val wantPadTop = controlsBottom + ramp
-        if (messageList.paddingTop != wantPadTop) {
-            messageList.setPadding(
-                messageList.paddingLeft, wantPadTop,
-                messageList.paddingRight, messageList.paddingBottom
-            )
+        val wantTop = controlsBottom + dp(16)
+        val wantBottom = composerContainerView.height + imeLift + dp(8)
+        if (messageList.paddingTop != wantTop || messageList.paddingBottom != wantBottom) {
+            val stickToEnd = !messageList.canScrollVertically(1)
+            messageList.setPadding(messageList.paddingLeft, wantTop, messageList.paddingRight, wantBottom)
+            if (stickToEnd && messages.isNotEmpty()) messageList.post { messageList.scrollToPosition(messages.size - 1) }
         }
-        messageList.setFadeZone(controlsBottom - dp(6), controlsBottom + ramp)
+        messageList.setFadeHeight(controlsBottom + dp(14))
     }
 
     /** "HML handles it." — white → sky → blue gradient text, as in the concept's h1 span. */
@@ -772,12 +788,10 @@ class MainActivity : AppCompatActivity() {
         val showHome = messages.isEmpty() || forceHome
         homeContentView.visibility = if (showHome) View.VISIBLE else View.GONE
         messageList.visibility = if (showHome) View.GONE else View.VISIBLE
-        // Chat header (title + TEMPORARY badge) belongs to the chat screen, but a temporary
-        // chat also shows it on Home so the mode is never invisible.
-        chatHeader.visibility = if (!showHome || isTemporaryChat) View.VISIBLE else View.GONE
-        chatTitle.text = if (isTemporaryChat) getString(R.string.temporary_chat_title)
-            else messages.firstOrNull { it.isUser }?.text?.take(40)
-                ?: getString(R.string.new_conversation)
+        if (::composerBlur.isInitialized) {
+            composerBlur.setSource(if (showHome) homeContentView else messageList)
+            composerBlur.refresh()
+        }
     }
 
     private fun setupAccountRow(accountRow: View) {
@@ -880,7 +894,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updateTemporaryUi() {
-        temporaryBanner.visibility = if (isTemporaryChat) View.VISIBLE else View.GONE
         val active = ContextCompat.getColor(this, R.color.blue_glow)
         temporaryChatButton.isActivated = isTemporaryChat
         temporaryChatButton.alpha = if (isTemporaryChat) 1f else 0.68f
