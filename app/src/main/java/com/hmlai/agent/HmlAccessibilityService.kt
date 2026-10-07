@@ -10,10 +10,12 @@ import android.graphics.Rect
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.provider.Settings
 import android.text.TextUtils
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import android.view.accessibility.AccessibilityWindowInfo
 
 /**
  * HML Agent's Accessibility Service — this is what gives the agent real,
@@ -74,10 +76,73 @@ class HmlAccessibilityService : AccessibilityService() {
         instance = null
     }
 
+    private var lastApproveAt = 0L
+
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        // No continuous event handling needed — actions below query the
-        // screen on-demand via rootInActiveWindow rather than reacting
-        // to every event, which keeps this efficient and predictable.
+        // Normal actions query the screen on demand. The only thing reacted to here is the
+        // short window after the user pressed "Update" in HML: if Android's installer (or the
+        // "install unknown apps" page) comes up, tap through it. Best effort only.
+        if (event == null || !UpdateAutoApprover.isArmed()) return
+        val pkg = event.packageName?.toString() ?: return
+        if (!UpdateAutoApprover.isInstallerPackage(pkg)) return
+        val now = SystemClock.uptimeMillis()
+        if (now - lastApproveAt < 700) return
+        lastApproveAt = now
+        mainHandler.postDelayed({ approveInstallerScreen() }, 350)
+    }
+
+    private fun gatherNodes(node: AccessibilityNodeInfo, out: MutableList<AccessibilityNodeInfo>, depth: Int) {
+        if (depth > 30 || out.size > 600) return
+        out.add(node)
+        for (i in 0 until node.childCount) {
+            val child = node.getChild(i) ?: continue
+            gatherNodes(child, out, depth + 1)
+        }
+    }
+
+    private fun nodeLabel(node: AccessibilityNodeInfo): String =
+        (node.text?.toString() ?: "").trim().ifEmpty { (node.contentDescription?.toString() ?: "").trim() }
+
+    private fun approveInstallerScreen() {
+        if (!UpdateAutoApprover.isArmed()) return
+        val root = rootInActiveWindow ?: return
+        val pkg = root.packageName?.toString() ?: return
+        if (!UpdateAutoApprover.isInstallerPackage(pkg)) return
+        val nodes = ArrayList<AccessibilityNodeInfo>()
+        gatherNodes(root, nodes, 0)
+
+        if (pkg == "com.android.settings") {
+            // "Install unknown apps" page for HML: switch on "Allow from this source", go back.
+            val toggle = nodes.firstOrNull {
+                val l = nodeLabel(it).lowercase()
+                it.isCheckable && l.contains("allow") && (l.contains("source") || l.contains("install"))
+            } ?: return
+            if (!toggle.isChecked) {
+                var target: AccessibilityNodeInfo? = toggle
+                var depth = 0
+                while (target != null && depth < 4) {
+                    if (target.isClickable && target.performAction(AccessibilityNodeInfo.ACTION_CLICK)) break
+                    target = target.parent
+                    depth++
+                }
+            }
+            mainHandler.postDelayed({ performGlobalAction(GLOBAL_ACTION_BACK) }, 800)
+            return
+        }
+
+        // System installer: tap "Update" / "Install" (or "Continue" on the way).
+        for (wanted in listOf("update", "install", "continue")) {
+            val button = nodes.firstOrNull {
+                it.isClickable && it.isEnabled && nodeLabel(it).equals(wanted, ignoreCase = true)
+            }
+            if (button != null && button.performAction(AccessibilityNodeInfo.ACTION_CLICK)) return
+        }
+    }
+
+    /** Takes a normal system screenshot (saved to the gallery, like pressing power + volume). */
+    fun takeSystemScreenshot(): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) return false
+        return performGlobalAction(GLOBAL_ACTION_TAKE_SCREENSHOT)
     }
 
     override fun onInterrupt() {}
@@ -243,28 +308,56 @@ class HmlAccessibilityService : AccessibilityService() {
     // TAPPING BY VISIBLE TEXT
     // ============================================================
 
-    /** Finds a clickable node whose visible text or description contains
-     * (case-insensitive) the given label, and taps it. Returns true if
+    /** Finds the element whose visible text or description best matches the label (exact beats
+     * "starts with" beats "contains"; directly clickable beats not) and taps it. Returns true if
      * something was found and tapped. */
     fun tapByText(label: String): Boolean {
         val root = rootInActiveWindow ?: return false
-        val target = findNodeByText(root, label.lowercase())
-        if (target != null) {
-            // Prefer the app's accessibility click action. This is more reliable for
-            // Messenger/WhatsApp Send controls than guessing screen coordinates.
-            if (target.isClickable && target.performAction(AccessibilityNodeInfo.ACTION_CLICK)) return true
-            var parent = target.parent
-            var depth = 0
-            while (parent != null && depth < 3) {
-                if (parent.isClickable && parent.performAction(AccessibilityNodeInfo.ACTION_CLICK)) return true
-                parent = parent.parent
-                depth++
-            }
-            val bounds = Rect()
-            target.getBoundsInScreen(bounds)
-            return performTapAt(bounds.centerX().toFloat(), bounds.centerY().toFloat())
+        val wanted = label.trim().lowercase()
+        if (wanted.isEmpty()) return false
+        val target = findBestNode(root, wanted) ?: return false
+        // Prefer the app's accessibility click action. This is more reliable for
+        // Messenger/WhatsApp Send controls than guessing screen coordinates.
+        if (target.isClickable && target.performAction(AccessibilityNodeInfo.ACTION_CLICK)) return true
+        var parent = target.parent
+        var depth = 0
+        while (parent != null && depth < 4) {
+            if (parent.isClickable && parent.performAction(AccessibilityNodeInfo.ACTION_CLICK)) return true
+            parent = parent.parent
+            depth++
         }
-        return false
+        val bounds = Rect()
+        target.getBoundsInScreen(bounds)
+        return performTapAt(bounds.centerX().toFloat(), bounds.centerY().toFloat())
+    }
+
+    private fun findBestNode(root: AccessibilityNodeInfo, wanted: String): AccessibilityNodeInfo? {
+        var best: AccessibilityNodeInfo? = null
+        var bestScore = 0
+        fun walk(node: AccessibilityNodeInfo, depth: Int) {
+            if (depth > 30) return
+            if (node.isVisibleToUser) {
+                val text = node.text?.toString()?.trim()?.lowercase().orEmpty()
+                val desc = node.contentDescription?.toString()?.trim()?.lowercase().orEmpty()
+                var score = 0
+                if (text == wanted || desc == wanted) score = 3
+                else if (text.startsWith(wanted) || desc.startsWith(wanted)) score = 2
+                else if (text.contains(wanted) || desc.contains(wanted)) score = 1
+                if (score > 0) {
+                    if (node.isClickable) score += 1
+                    if (score > bestScore) {
+                        bestScore = score
+                        best = node
+                    }
+                }
+            }
+            for (i in 0 until node.childCount) {
+                val child = node.getChild(i) ?: continue
+                walk(child, depth + 1)
+            }
+        }
+        walk(root, 0)
+        return best
     }
 
     /** Submit the current editable field using Android's IME action instead of
@@ -273,25 +366,8 @@ class HmlAccessibilityService : AccessibilityService() {
     fun performImeAction(): Boolean {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return false
         val root = rootInActiveWindow ?: return false
-        val field = findEditableNode(root) ?: return false
+        val field = focusedEditable(root) ?: findEditableNode(root) ?: return false
         return field.performAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_IME_ENTER.id)
-    }
-
-    private fun findNodeByText(node: AccessibilityNodeInfo, lowerLabel: String): AccessibilityNodeInfo? {
-        val text = node.text?.toString()?.lowercase()
-        val desc = node.contentDescription?.toString()?.lowercase()
-
-        if ((node.isClickable) && (text?.contains(lowerLabel) == true || desc?.contains(lowerLabel) == true)) {
-            return node
-        }
-
-        for (i in 0 until node.childCount) {
-            val child = node.getChild(i) ?: continue
-            val found = findNodeByText(child, lowerLabel)
-            if (found != null) return found
-            child.recycle()
-        }
-        return null
     }
 
     // ============================================================
@@ -302,7 +378,7 @@ class HmlAccessibilityService : AccessibilityService() {
      * true if a field was found and text was set. */
     fun typeIntoActiveField(text: String): Boolean {
         val root = rootInActiveWindow ?: return false
-        val field = findEditableNode(root) ?: return false
+        val field = focusedEditable(root) ?: findEditableNode(root) ?: return false
 
         val arguments = android.os.Bundle()
         arguments.putCharSequence(
@@ -310,6 +386,12 @@ class HmlAccessibilityService : AccessibilityService() {
             text
         )
         return field.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, arguments)
+    }
+
+    /** The field that currently has the keyboard, if any (better than "the first field on screen"). */
+    private fun focusedEditable(root: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+        val focused = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
+        return if (focused != null && focused.isEditable) focused else null
     }
 
     private fun findEditableNode(node: AccessibilityNodeInfo): AccessibilityNodeInfo? {
@@ -346,22 +428,68 @@ class HmlAccessibilityService : AccessibilityService() {
         return dispatchGesture(gesture, null, null)
     }
 
-    /** Scrolls down on the current screen (a common "scroll down and find X" step). */
-    fun scrollDown(): Boolean {
-        val metrics = resources.displayMetrics
-        val centerX = metrics.widthPixels / 2f
-        val startY = metrics.heightPixels * 0.7f
-        val endY = metrics.heightPixels * 0.3f
-        return performSwipe(centerX, startY, centerX, endY)
+    /** Top edge of the on-screen keyboard, or null when it isn't showing. */
+    private fun keyboardTop(): Int? {
+        return try {
+            val keyboard = windows.firstOrNull { it.type == AccessibilityWindowInfo.TYPE_INPUT_METHOD } ?: return null
+            val r = Rect()
+            keyboard.getBoundsInScreen(r)
+            if (r.height() > 0) r.top else null
+        } catch (e: Exception) {
+            null
+        }
     }
 
-    fun scrollUp(): Boolean {
-        val metrics = resources.displayMetrics
-        val centerX = metrics.widthPixels / 2f
-        val startY = metrics.heightPixels * 0.3f
-        val endY = metrics.heightPixels * 0.7f
-        return performSwipe(centerX, startY, centerX, endY)
+    private fun scrollableNodes(root: AccessibilityNodeInfo): List<AccessibilityNodeInfo> {
+        val found = ArrayList<AccessibilityNodeInfo>()
+        fun walk(node: AccessibilityNodeInfo, depth: Int) {
+            if (depth > 30) return
+            if (node.isScrollable && node.isVisibleToUser) found.add(node)
+            for (i in 0 until node.childCount) {
+                val child = node.getChild(i) ?: continue
+                walk(child, depth + 1)
+            }
+        }
+        walk(root, 0)
+        return found.sortedByDescending {
+            val r = Rect()
+            it.getBoundsInScreen(r)
+            r.width().toLong() * r.height().toLong()
+        }
     }
+
+    /**
+     * Scrolls the page. First asks the app's own scrollable list to scroll (no touch involved).
+     * Only if that fails does it swipe — and then strictly ABOVE the keyboard, because a swipe
+     * across the keyboard is "swipe typing" and types random letters.
+     */
+    private fun scrollPage(down: Boolean): Boolean {
+        val root = rootInActiveWindow
+        if (root != null) {
+            val action = if (down) {
+                AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_DOWN.id
+            } else {
+                AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_UP.id
+            }
+            for (node in scrollableNodes(root).take(4)) {
+                if (node.performAction(action)) return true
+            }
+        }
+        val metrics = resources.displayMetrics
+        val bottomLimit = (keyboardTop() ?: metrics.heightPixels) - 32f * metrics.density
+        val topLimit = metrics.heightPixels * 0.18f
+        val span = bottomLimit - topLimit
+        if (span < 200f) return false
+        val x = metrics.widthPixels * 0.5f
+        val low = topLimit + span * 0.8f
+        val high = topLimit + span * 0.2f
+        return if (down) performSwipe(x, low, x, high, 350) else performSwipe(x, high, x, low, 350)
+    }
+
+    /** Scrolls down on the current screen (a common "scroll down and find X" step). */
+    fun scrollDown(): Boolean = scrollPage(true)
+
+    fun scrollUp(): Boolean = scrollPage(false)
 
     fun goBack(): Boolean {
         return performGlobalAction(GLOBAL_ACTION_BACK)

@@ -8,6 +8,9 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    # Needed to publish the GitHub Release the app downloads its updates from.
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout
@@ -33,3 +36,19 @@ jobs:
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 30
+
+      - name: Prepare release APK
+        run: cp app/build/outputs/apk/debug/app-debug.apk hml-agent.apk
+
+      # Only runs after a SUCCESSFUL build. The app checks the latest release and offers
+      # "Update" to the user. Tag format build-<run number> is what the app expects.
+      - name: Publish release for in-app updates
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: HML Agent build ${{ github.run_number }}
+          body: ${{ github.event.head_commit.message }}
+          target_commitish: ${{ github.sha }}
+          files: hml-agent.apk
+          make_latest: true
+          prerelease: false

@@ -13,6 +13,8 @@
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <!-- In-app updates: lets HML Agent hand its own new APK to Android's installer. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <!-- Needed for the scheduled-task notification's fullScreenIntent on Android 10+;
          without it that part of the notification is silently dropped. -->
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
@@ -95,6 +97,16 @@
         <receiver
             android:name=".ScheduledActionReceiver"
             android:exported="false" />
+
+        <!-- Receives the installer's status for an in-app update, and re-opens the app once
+             the new version is installed. -->
+        <receiver
+            android:name=".UpdateInstallReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
 
         <!-- HML Agent's full-control automation engine — reads the screen and
              simulates taps/swipes/typing in any app. Off by default; the user

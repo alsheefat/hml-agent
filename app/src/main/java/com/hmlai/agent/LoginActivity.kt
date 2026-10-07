@@ -50,9 +50,14 @@ class LoginActivity : AppCompatActivity() {
             showProgress(false)
             // 12501 = the user just backed out of the Google picker — not an error worth a toast.
             if (e.statusCode != GoogleSignInStatusCodes.SIGN_IN_CANCELLED) {
+                val reason = when (e.statusCode) {
+                    10 -> "this build's signing key (SHA-1) isn't registered for Google sign-in yet"
+                    7 -> "no internet connection"
+                    else -> "code ${e.statusCode}"
+                }
                 Toast.makeText(
                     this,
-                    "Google sign-in failed (code ${e.statusCode}). You can still tap \"Sign in Later\".",
+                    "Google sign-in failed ($reason). You can still tap \"Sign in Later\".",
                     Toast.LENGTH_LONG
                 ).show()
             }

@@ -61,7 +61,52 @@ class AutonomousTaskRunner(
         cancelled = false
         finished = false
         startedAt = System.currentTimeMillis()
+
+        // Common tasks (message someone in WhatsApp/Messenger/Telegram, play something on
+        // YouTube) run through built-in, verified skills first; the remote planner only steps
+        // in for everything else, or if a skill can't finish.
+        val skill = QuickSkills.match(goal)
+        if (skill != null) {
+            runQuickSkill(goal, skill)
+            return
+        }
         prepareStartingApp(goal)
+    }
+
+    private fun runQuickSkill(goal: String, skill: QuickSkill) {
+        val service = HmlAccessibilityService.instance ?: run {
+            prepareStartingApp(goal)
+            return
+        }
+        onStatusUpdate("Working on it")
+        Thread {
+            val tools = UiTools(service) { cancelled || finished }
+            val env = SkillEnv(context, service, tools) { status ->
+                mainHandler.post { if (!cancelled && !finished) onStatusUpdate(status) }
+            }
+            val outcome: SkillOutcome = try {
+                skill.run(env)
+            } catch (e: Exception) {
+                SkillOutcome.Failure("unexpected error: ${e.message}")
+            }
+            mainHandler.post {
+                if (cancelled || finished) return@post
+                when (outcome) {
+                    is SkillOutcome.Success -> finishOnce(outcome.message)
+                    is SkillOutcome.Failure -> {
+                        if (outcome.stopHere) {
+                            finishOnce(outcome.reason)
+                        } else {
+                            onStatusUpdate("Trying another way")
+                            step(
+                                goal,
+                                listOf("A built-in shortcut tried first and stopped: ${outcome.reason}. The target app may already be open; read the current screen and continue from here.")
+                            )
+                        }
+                    }
+                }
+            }
+        }.start()
     }
 
     private fun prepareStartingApp(goal: String) {

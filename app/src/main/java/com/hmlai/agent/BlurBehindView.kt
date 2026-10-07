@@ -27,7 +27,16 @@ class BlurBehindView @JvmOverloads constructor(
     attrs: AttributeSet? = null
 ) : View(context, attrs) {
 
-    private val cornerPx = resources.displayMetrics.density * 24f
+    // Corner radius is configurable (app:blurCornerRadius) so the same layer fits the big
+    // writing bar (24dp) and the small top buttons (13-14dp). Default = writing bar.
+    private val cornerPx: Float = run {
+        val a = context.obtainStyledAttributes(attrs, R.styleable.BlurBehindView)
+        try {
+            a.getDimension(R.styleable.BlurBehindView_blurCornerRadius, resources.displayMetrics.density * 24f)
+        } finally {
+            a.recycle()
+        }
+    }
     private val supported = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
     private val clipPath = Path()
     private val bitmapPaint = Paint(Paint.FILTER_BITMAP_FLAG)
@@ -107,7 +116,14 @@ class BlurBehindView @JvmOverloads constructor(
         val off = Canvas(bmp)
         off.scale(scale, scale)
         off.translate((srcLoc[0] - dstLoc[0]).toFloat(), (srcLoc[1] - dstLoc[1]).toFloat())
-        src.draw(off)
+        // The top fade must not darken what the glass shows, so switch it off for the snapshot.
+        val fadeList = src as? FadeTopRecyclerView
+        fadeList?.suppressFade = true
+        try {
+            src.draw(off)
+        } finally {
+            fadeList?.suppressFade = false
+        }
 
         canvas.save()
         canvas.clipPath(clipPath)

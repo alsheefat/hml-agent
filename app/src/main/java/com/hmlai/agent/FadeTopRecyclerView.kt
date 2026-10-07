@@ -26,6 +26,10 @@ class FadeTopRecyclerView @JvmOverloads constructor(
     private val maskPaint = Paint().apply { xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_OUT) }
     private var fadeHeight = 0
 
+    /** Set to true while a glass layer snapshots this list, so the blur sees the real content. */
+    @JvmField
+    var suppressFade = false
+
     fun setFadeHeight(px: Int) {
         if (px == fadeHeight) return
         fadeHeight = px.coerceAtLeast(0)
@@ -39,7 +43,7 @@ class FadeTopRecyclerView @JvmOverloads constructor(
     }
 
     override fun dispatchDraw(canvas: Canvas) {
-        if (fadeHeight <= 0) {
+        if (fadeHeight <= 0 || suppressFade) {
             super.dispatchDraw(canvas)
             return
         }

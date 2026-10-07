@@ -85,6 +85,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var homeContentView: View
     private lateinit var composerWrap: View
     private lateinit var composerBlur: BlurBehindView
+    private lateinit var glassLayers: List<BlurBehindView>
     private lateinit var composerContainerView: View
     private var imeLift = 0
     private lateinit var topBarView: View
@@ -124,6 +125,14 @@ class MainActivity : AppCompatActivity() {
 
     private var speechRecognizer: SpeechRecognizer? = null
     private var voiceDialog: android.app.Dialog? = null
+
+    override fun onResume() {
+        super.onResume()
+        // In-app updates: finish an update that was waiting for the install permission,
+        // then do a quiet (throttled) check for a newer build.
+        UpdateUi.resumePending(this)
+        UpdateUi.checkOnStart(this)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -170,26 +179,33 @@ class MainActivity : AppCompatActivity() {
         homeContentView = findViewById(R.id.homeContentView)
         composerWrap = findViewById(R.id.composerWrap)
         composerBlur = findViewById(R.id.composerBlur)
+        // Every glass layer: the writing bar + the three top buttons.
+        glassLayers = listOf(
+            composerBlur,
+            findViewById(R.id.blurMenu),
+            findViewById(R.id.blurTemp),
+            findViewById(R.id.blurNew)
+        )
         composerContainerView = findViewById(R.id.composerContainer)
         topBarView = findViewById(R.id.topBar)
-        composerBlur.setSource(homeContentView)
+        glassLayers.forEach { it.setSource(homeContentView) }
         // Keep list padding (top controls / composer) and the top fade matched to real sizes.
         messageList.viewTreeObserver.addOnGlobalLayoutListener { updateListInsets() }
         // The glass bar re-samples the chat whenever the content behind it can have changed.
         messageList.addOnScrollListener(object : RecyclerView.OnScrollListener() {
-            override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) = composerBlur.refresh()
+            override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) = refreshGlass()
         })
         adapter.registerAdapterDataObserver(object : RecyclerView.AdapterDataObserver() {
-            override fun onChanged() { composerBlur.post { composerBlur.refresh() } }
-            override fun onItemRangeInserted(positionStart: Int, itemCount: Int) { composerBlur.post { composerBlur.refresh() } }
-            override fun onItemRangeChanged(positionStart: Int, itemCount: Int) { composerBlur.post { composerBlur.refresh() } }
-            override fun onItemRangeRemoved(positionStart: Int, itemCount: Int) { composerBlur.post { composerBlur.refresh() } }
+            override fun onChanged() { composerBlur.post { refreshGlass() } }
+            override fun onItemRangeInserted(positionStart: Int, itemCount: Int) { composerBlur.post { refreshGlass() } }
+            override fun onItemRangeChanged(positionStart: Int, itemCount: Int) { composerBlur.post { refreshGlass() } }
+            override fun onItemRangeRemoved(positionStart: Int, itemCount: Int) { composerBlur.post { refreshGlass() } }
         })
-        messageList.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> composerBlur.refresh() }
-        homeContentView.setOnScrollChangeListener { _, _, _, _, _ -> composerBlur.refresh() }
+        messageList.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> refreshGlass() }
+        homeContentView.setOnScrollChangeListener { _, _, _, _, _ -> refreshGlass() }
         findViewById<View>(R.id.composerContainer).addOnLayoutChangeListener { _, _, top, _, bottom, _, oldTop, _, oldBottom ->
             if (bottom - top != oldBottom - oldTop) updateListInsets()
-            composerBlur.refresh()
+            refreshGlass()
         }
         taskCard = findViewById(R.id.taskCard)
         taskLive = findViewById(R.id.taskLive)
@@ -231,6 +247,28 @@ class MainActivity : AppCompatActivity() {
         micButton.setOnClickListener { startVoiceInput() }
         // Glass composer picks up the focus border from the concept.
         input.setOnFocusChangeListener { _, hasFocus -> composerWrap.isActivated = hasFocus }
+        // Keyboard clipboard panels (Gboard etc.) can deliver a tapped clip as "content" rather
+        // than plain typed text; the default EditText ignored that, so tapping a clip did
+        // nothing while long-press > Paste worked. Accept any text clip and insert it.
+        ViewCompat.setOnReceiveContentListener(input, arrayOf("text/*")) { _, payload ->
+            val split = payload.partition { item -> item.text != null }
+            val textItems = split.first
+            val rest = split.second
+            if (textItems != null) {
+                val clip = textItems.clip
+                val sb = StringBuilder()
+                for (i in 0 until clip.itemCount) sb.append(clip.getItemAt(i).coerceToText(this))
+                val pasted = sb.toString()
+                if (pasted.isNotEmpty()) {
+                    val editable = input.text
+                    val start = input.selectionStart.coerceAtLeast(0)
+                    val end = input.selectionEnd.coerceAtLeast(start)
+                    editable?.replace(start, end, pasted)
+                    input.setSelection((start + pasted.length).coerceAtMost(input.text?.length ?: 0))
+                }
+            }
+            rest
+        }
 
         // Android 15 is edge-to-edge here. The important rule is: NEVER add the IME height
         // to the composer's layout padding. Doing that makes the composer itself taller, which
@@ -259,7 +297,7 @@ class MainActivity : AppCompatActivity() {
             composerContainer.translationY = -lift.toFloat()
             imeLift = lift
             updateListInsets()
-            composerBlur.refresh()
+            refreshGlass()
 
             // The drawer is edge-to-edge too; only its safe system-bar insets affect its
             // internal padding. The IME must never resize or lift the drawer.
@@ -275,6 +313,12 @@ class MainActivity : AppCompatActivity() {
 
         applyHeadlineGradient()
         updateTemporaryUi()
+    }
+
+    /** Re-samples the chat for every glass layer (writing bar + top buttons). */
+    private fun refreshGlass() {
+        if (!::glassLayers.isInitialized) return
+        for (layer in glassLayers) layer.refresh()
     }
 
     /** The chat list is full-screen: it scrolls under the top icons and under the glass composer.
@@ -789,8 +833,9 @@ class MainActivity : AppCompatActivity() {
         homeContentView.visibility = if (showHome) View.VISIBLE else View.GONE
         messageList.visibility = if (showHome) View.GONE else View.VISIBLE
         if (::composerBlur.isInitialized) {
-            composerBlur.setSource(if (showHome) homeContentView else messageList)
-            composerBlur.refresh()
+            val glassSource = if (showHome) homeContentView else messageList
+            glassLayers.forEach { it.setSource(glassSource) }
+            refreshGlass()
         }
     }
 
@@ -1071,6 +1116,12 @@ class MainActivity : AppCompatActivity() {
                 startAutonomousTask("Previous goal: $previous\nUser follow-up/correction: $text", thinkingIndex, convId)
                 return
             }
+        }
+
+        if (normalized.matches(Regex("^(check (for )?(an? )?updates?|update (hml|hml agent|the app|app|yourself)|any updates?( available)?|is there (an? )?update)\\??$"))) {
+            replaceMessage(convId, thinkingIndex, "🔄 Checking for updates…", persist = false)
+            UpdateUi.checkNow(this) { answer -> replaceMessage(convId, thinkingIndex, answer) }
+            return
         }
 
         if (handleMemoryCommand(text, convId, thinkingIndex)) return

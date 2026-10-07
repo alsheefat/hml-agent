@@ -47,6 +47,11 @@ object DeviceCommandHandler {
             return CommandResult(true, setFlashlight(context, false))
         }
 
+        // --- Screenshot ---
+        if (isScreenshotCommand(text)) {
+            return CommandResult(true, takeScreenshot())
+        }
+
         // --- Phone call ---
         val callTarget = extractCallTarget(text)
         if (callTarget != null) {
@@ -194,6 +199,25 @@ object DeviceCommandHandler {
     // ============================================================
     // FLASHLIGHT
     // ============================================================
+
+    private fun isScreenshotCommand(text: String): Boolean {
+        val t = text.trim()
+        val mentionsScreenshot = t.contains("screenshot") || t.contains("screen shot") ||
+            t.contains("screen capture") || t.contains("স্ক্রিনশট")
+        if (!mentionsScreenshot) return false
+        if (t.split(Regex("\\s+")).size > 6) return false
+        // "send/share the screenshot to X" is a bigger task for the autonomous agent.
+        val compound = listOf("send", "share", "post", "upload", "email", "whatsapp", "messenger", "telegram", "instagram", " to ")
+        return compound.none { t.contains(it) }
+    }
+
+    private fun takeScreenshot(): String {
+        val service = HmlAccessibilityService.instance
+            ?: return "🔒 To take screenshots I need Autonomous Control. Go to Settings > Accessibility > HML Agent, turn it on, then ask again."
+        // Small delay so this reply is drawn before the screen is captured.
+        Handler(Looper.getMainLooper()).postDelayed({ service.takeSystemScreenshot() }, 900)
+        return "📸 Taking a screenshot… it'll be saved in your gallery."
+    }
 
     private fun isFlashOnCommand(text: String): Boolean {
         val patterns = listOf(
@@ -533,6 +557,22 @@ object DeviceCommandHandler {
      * automatically — the user has to tap WhatsApp's own send button once
      * the chat opens. This is a real WhatsApp/Android limitation, not
      * something this app can bypass. */
+    private fun toInternationalDigits(context: Context, raw: String): String {
+        val tm = context.getSystemService(Context.TELEPHONY_SERVICE) as? android.telephony.TelephonyManager
+        val iso = (tm?.simCountryIso?.takeIf { it.isNotBlank() }
+            ?: tm?.networkCountryIso?.takeIf { it.isNotBlank() }
+            ?: java.util.Locale.getDefault().country.takeIf { it.isNotBlank() }
+            ?: "BD").uppercase()
+        val e164 = try {
+            android.telephony.PhoneNumberUtils.formatNumberToE164(raw, iso)
+        } catch (e: Exception) {
+            null
+        }
+        val digits = (e164 ?: raw).filter { it.isDigit() }
+        // Bangladesh fallback if the formatter couldn't help: 01XXXXXXXXX -> 8801XXXXXXXXX
+        return if (e164 == null && digits.startsWith("01") && digits.length == 11) "880" + digits.substring(1) else digits
+    }
+
     private fun openWhatsAppChat(context: Context, contactName: String, message: String): String {
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CONTACTS)
             != PackageManager.PERMISSION_GRANTED
@@ -543,9 +583,10 @@ object DeviceCommandHandler {
         val phoneNumber = ContactResolver.findPhoneNumberForContact(context, contactName)
             ?: return "I couldn't find a contact named \"$contactName\" to message on WhatsApp."
 
-        // WhatsApp's official API needs the number as country-code + digits,
-        // no "+", spaces, or other punctuation.
-        val cleanedNumber = phoneNumber.filter { it.isDigit() }
+        // WhatsApp's link needs country-code + digits, no "+", spaces or punctuation. Contacts
+        // are often saved in local form (01XXXXXXXXX) — without the country code WhatsApp says
+        // "Couldn't look up phone number ... missing a country code", so convert it first.
+        val cleanedNumber = toInternationalDigits(context, phoneNumber)
 
         return try {
             val encodedMessage = Uri.encode(message)

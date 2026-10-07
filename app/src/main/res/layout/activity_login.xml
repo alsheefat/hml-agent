@@ -58,20 +58,11 @@
             android:clickable="true"
             android:focusable="true">
 
-            <FrameLayout
+            <ImageView
                 android:layout_width="22dp"
                 android:layout_height="22dp"
-                android:background="@drawable/google_mark_bg">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_gravity="center"
-                    android:text="G"
-                    android:textColor="#4285F4"
-                    android:textSize="13sp"
-                    android:textStyle="bold" />
-            </FrameLayout>
+                android:src="@drawable/ic_google_g"
+                android:contentDescription="@null" />
 
             <TextView
                 android:layout_width="wrap_content"
@@ -94,20 +85,11 @@
             android:clickable="true"
             android:focusable="true">
 
-            <FrameLayout
+            <ImageView
                 android:layout_width="22dp"
                 android:layout_height="22dp"
-                android:background="@drawable/facebook_mark_bg">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_gravity="center"
-                    android:text="f"
-                    android:textColor="#FFFFFF"
-                    android:textSize="14sp"
-                    android:textStyle="bold" />
-            </FrameLayout>
+                android:src="@drawable/ic_facebook_f"
+                android:contentDescription="@null" />
 
             <TextView
                 android:layout_width="wrap_content"

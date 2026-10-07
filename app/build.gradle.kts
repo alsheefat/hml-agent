@@ -3,6 +3,13 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
+// ---- Auto-update support -------------------------------------------------------------
+// GitHub Actions provides these. Every CI build gets a higher versionCode than the last, so
+// Android accepts it as an in-place update; the app compares BUILD_NUMBER with the newest
+// GitHub Release (tag "build-<n>") to know when to offer an update.
+val ciBuildNumber: Int = (System.getenv("GITHUB_RUN_NUMBER") ?: "0").toIntOrNull() ?: 0
+val ciRepository: String = System.getenv("GITHUB_REPOSITORY") ?: ""
+
 android {
     namespace = "com.hmlai.agent"
     compileSdk = 34
@@ -11,8 +18,10 @@ android {
         applicationId = "com.hmlai.agent"
         minSdk = 26
         targetSdk = 34
-        versionCode = 23
-        versionName = "1.5"
+        versionCode = 100 + ciBuildNumber
+        versionName = "1.5.$ciBuildNumber"
+        buildConfigField("int", "BUILD_NUMBER", "$ciBuildNumber")
+        buildConfigField("String", "UPDATE_REPO", "\"$ciRepository\"")
     }
 
 
@@ -45,6 +54,7 @@ android {
 
     buildFeatures {
         viewBinding = true
+        buildConfig = true
     }
 }
 

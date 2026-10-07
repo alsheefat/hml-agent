@@ -171,11 +171,23 @@
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent">
 
-            <ImageButton
-                android:id="@+id/menuButton"
-                style="@style/MinimalIconButton"
-                android:src="@drawable/ic_menu_hml"
-                android:contentDescription="@string/recent" />
+            <FrameLayout
+                android:layout_width="40dp"
+                android:layout_height="40dp">
+
+                <com.hmlai.agent.BlurBehindView
+                    android:id="@+id/blurMenu"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    app:blurCornerRadius="14dp" />
+
+                <ImageButton
+                    android:id="@+id/menuButton"
+                    style="@style/MinimalIconButton"
+                    android:background="@drawable/top_menu_bg"
+                    android:src="@drawable/ic_menu_hml"
+                    android:contentDescription="@string/recent" />
+            </FrameLayout>
 
             <LinearLayout
                 android:layout_width="0dp"
@@ -192,18 +204,40 @@
                     android:contentDescription="@string/app_name" />
             </LinearLayout>
 
-            <ImageButton
-                android:id="@+id/temporaryChatButton"
-                style="@style/TopTemporaryButton"
-                android:src="@drawable/ic_temp_hml"
-                android:contentDescription="@string/temporary_chat" />
+            <FrameLayout
+                android:layout_width="40dp"
+                android:layout_height="40dp">
 
-            <ImageButton
-                android:id="@+id/newChatButton"
-                style="@style/TopNewChatButton"
-                android:layout_marginStart="6dp"
-                android:src="@drawable/ic_new_chat_hml"
-                android:contentDescription="@string/new_chat" />
+                <com.hmlai.agent.BlurBehindView
+                    android:id="@+id/blurTemp"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    app:blurCornerRadius="13dp" />
+
+                <ImageButton
+                    android:id="@+id/temporaryChatButton"
+                    style="@style/TopTemporaryButton"
+                    android:src="@drawable/ic_temp_hml"
+                    android:contentDescription="@string/temporary_chat" />
+            </FrameLayout>
+
+            <FrameLayout
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_marginStart="6dp">
+
+                <com.hmlai.agent.BlurBehindView
+                    android:id="@+id/blurNew"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    app:blurCornerRadius="13dp" />
+
+                <ImageButton
+                    android:id="@+id/newChatButton"
+                    style="@style/TopNewChatButton"
+                    android:src="@drawable/ic_new_chat_hml"
+                    android:contentDescription="@string/new_chat" />
+            </FrameLayout>
         </LinearLayout>
 
         <LinearLayout
